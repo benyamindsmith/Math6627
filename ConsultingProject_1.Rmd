@@ -111,6 +111,24 @@ dagify(download_time~latency,
 
 ## Maps
 
+```{r}
+# Convert dataset to sf object
+dtt<- dt %>% st_as_sf(wkt  = "geometry")
+```
+
+```{r}
+world_map <- ne_countries(scale = "large", returnclass = 'sf')
+canada_map <- world_map %>% filter(name =="Canada")
+```
+
+
+```{r}
+dtt %>% 
+  ggplot()+
+  geom_sf()
+```
+
+
 # References
 
 # Code Appendix
