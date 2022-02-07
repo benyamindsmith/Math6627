@@ -1,0 +1,116 @@
+---
+title: "Towards A Clear Understanding Of Rural Internet: What Statistical Measures Can Be Used To Assess, Compare And Forecast Internet Speeds For Rural Canadian Communities?"
+subtitle: "A Consulting Project for Math 6627 (1/3)"
+author: "Benjamin Smith"
+date: "`r format(Sys.time(), '%d %B %Y')`"
+output:
+  pdf_document: default
+  toc: yes
+
+---
+```{r}
+setwd("D:/Math6627")
+```
+
+# Introduction
+
+(Quoted from the SCC website)
+
+The Government of Canada has committed to helping 95% of Canadian households and businesses access high-speed internet at minimum speeds of 50 Mbps download and 10 Mbps upload (hereinafter referred to as the “Commitment”) by 2026, and 100% by 2030. According to the CRTC, currently 45.6% of rural community households have access to the Commitment based on what’s available to them via an Internet Service Provider (e.g. Shaw, Telus, etc.) in their region, rather than what a rural household actually realizes at home in terms of internet speeds. 
+
+For this case study, the SCC would like to understand the state of internet connectivity in both rural and underserved Canadian communities using consumer-provided data. The SCC claims that by using data directly from the consumer, it is possible ot better understand connectivity in these communities as measured by the consumers in their own homes. 
+
+Specifically, the following is desired:
+
+1. A statistical analysis of the current realized and forecasted internet speeds (upload and download) for rural and undeserved communities in terms of progress towards the Commitment;
+
+2. A comparative analysis of rural and underserved communities in terms of progress towards the Commitment; and
+
+3. The identification of statistically reliable methods to assess and compare rural and underserved communities's realized internet access.For this study in particular, the identification of reliable and reproducible statistical methods to understand connectivity of rural and underserved Canadian communities is critical. 
+
+# The Data
+
+The data was made available by [Ookla]() and [Statistics Canada](). One of the first things to check regarding the data is to see if any missing data is present in the dataset. The visual below shows that most of the missing data is related to population center information. Namely data on population center id, type and class (PCUID, PCTYPE, PCLASS). 
+
+```{r message=FALSE, warning=FALSE}
+library(tidyverse)
+library(ggthemes)
+library(ggspatial)
+library(plotly)
+library(rnaturalearth)
+library(sf)
+library(scales)
+library(reshape2)
+dt<- readr::read_csv("./ConsultingData/ookla-canada-speed-tiles.csv")
+```
+
+```{r, fig.cap="Missing data present in dataset provied"}
+naniar::vis_miss(dt ,warn_large_data = FALSE)+
+  theme(axis.text.x=element_text(angle=90))
+```
+
+Since this information is not relevant to the analysis it does not present any challenges. 
+
+# Analysis
+
+## Current Realized And Forecasted Internet Speeds (Upload And Download)
+
+Due to the large number of observations, approaching this dataset with standard visuals was not easy to do. In lieu of this the use of directed acyclic graphs (DAGs) is employed to understand the relationship between variables available and develop the model accordingly. 
+
+```{r}
+library(ggdag)
+
+dagify(download_time~latency,
+       download_time ~ conn_type,
+       download_time~province,
+       download_time ~tests,
+       download_time~year,
+       download_time~quarter,
+       latency~ conn_type,
+       latency~no_of_devices,
+       year~quarter,
+       labels=c("download_time"="Download/Upload Time",
+                "latency" = "Latency",
+                "conn_type"="Connection Type\n(Fixed,Mobile)",
+                "no_of_devices"="No. of Devices",
+                "province"="Province",
+                "tests"="No. of tests",
+                "year"="Year\n(2019,2020,2021)",
+                "quarter"="Quarter\n(Q1,Q2,Q3,Q4)")) %>% 
+  tidy_dagitty() %>% 
+  mutate(xend=c(10.5,9,10.5,9,10.5,10.5,9,10.5,10.5,NA),
+         yend=c(0,0,0,0,0,0,-1.7,0,0,NA),
+         x=ifelse(name=="download_time",10.5,
+                  ifelse(name=="latency",9,
+                         ifelse(name=="conn_type",9.5,
+                                ifelse(name=="province",9,
+                                       ifelse(name=="tests",8.5,
+                                              ifelse(name=="year",9,
+                                                     ifelse(name=="quarter",10,
+                                                            8))))))),
+         y=ifelse(name=="download_time",0,
+                  ifelse(name=="latency",0,
+                         ifelse(name=="conn_type",1,
+                                ifelse(name=="province",-1,
+                                       ifelse(name=="tests",-1,
+                                              ifelse(name=="year",-1.7,
+                                                     ifelse(name=="quarter",-2,
+                                                            0))))))),
+         effectType=ifelse(name %in% c("download_time",
+                "latency",
+                "conn_type",
+                "no_of_devices",
+                "province",
+                "tests",
+                "year",
+                "quarter"),"Fixed","Random")) %>% 
+  ggdag(text=FALSE,use_labels = "label")+
+  ggtitle("DAG of relationship between Fixed Effects and Download/Upload Time")+
+  theme_dag()
+```
+
+## Maps
+
+# References
+
+# Code Appendix
