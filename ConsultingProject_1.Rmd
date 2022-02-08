@@ -8,9 +8,6 @@ output:
   toc: yes
 
 ---
-```{r}
-setwd("D:/Math6627")
-```
 
 # Introduction
 
@@ -41,17 +38,34 @@ library(rnaturalearth)
 library(sf)
 library(scales)
 library(reshape2)
-dt<- readr::read_csv("./ConsultingData/ookla-canada-speed-tiles.csv")
+#dt<- readr::read_csv("./ConsultingData/ookla-canada-speed-tiles.csv")
+# Accomidating for mtor
+setwd("/home/ben2908")
+dt<- readr::read_csv("./ookla-canada-speed-tiles.csv")
 ```
 
 ```{r, fig.cap="Missing data present in dataset provied"}
-naniar::vis_miss(dt ,warn_large_data = FALSE)+
-  theme(axis.text.x=element_text(angle=90))
+# naniar::vis_miss(dt ,warn_large_data = FALSE)+
+#   theme(axis.text.x=element_text(angle=90))
 ```
 
 Since this information is not relevant to the analysis it does not present any challenges. 
 
 # Analysis
+
+## Correlation Between Upload, Download and Latency times
+
+```{r}
+dt %>% 
+  dplyr::select(avg_d_kbps,avg_u_kbps, avg_lat_ms) %>% 
+  cor() %>% 
+  melt() %>% 
+  ggplot(mapping=aes(x=Var2,y=Var1,fill=value))+
+  geom_tile()+
+  scale_fill_gradient()+
+  geom_text(mapping=aes(label=scales::percent(value)))+
+  theme(axis.title = element_blank())
+```
 
 ## Current Realized And Forecasted Internet Speeds (Upload And Download)
 
@@ -62,10 +76,10 @@ library(ggdag)
 
 dagify(download_time~latency,
        download_time ~ conn_type,
-       download_time~province,
        download_time ~tests,
        download_time~year,
        download_time~quarter,
+       quarter~year,
        latency~ conn_type,
        latency~no_of_devices,
        year~quarter,
@@ -73,34 +87,30 @@ dagify(download_time~latency,
                 "latency" = "Latency",
                 "conn_type"="Connection Type\n(Fixed,Mobile)",
                 "no_of_devices"="No. of Devices",
-                "province"="Province",
                 "tests"="No. of tests",
                 "year"="Year\n(2019,2020,2021)",
                 "quarter"="Quarter\n(Q1,Q2,Q3,Q4)")) %>% 
   tidy_dagitty() %>% 
-  mutate(xend=c(10.5,9,10.5,9,10.5,10.5,9,10.5,10.5,NA),
-         yend=c(0,0,0,0,0,0,-1.7,0,0,NA),
+  mutate(xend=c(10.5,9,10.5,9,10.5,9,10.5,10.5,10.5,NA),
+         yend=c(0,0,0,0,0,-1.7,0,0,0,NA),
          x=ifelse(name=="download_time",10.5,
                   ifelse(name=="latency",9,
                          ifelse(name=="conn_type",9.5,
-                                ifelse(name=="province",9,
                                        ifelse(name=="tests",8.5,
                                               ifelse(name=="year",9,
                                                      ifelse(name=="quarter",10,
-                                                            8))))))),
+                                                            8)))))),
          y=ifelse(name=="download_time",0,
                   ifelse(name=="latency",0,
                          ifelse(name=="conn_type",1,
-                                ifelse(name=="province",-1,
                                        ifelse(name=="tests",-1,
                                               ifelse(name=="year",-1.7,
                                                      ifelse(name=="quarter",-2,
-                                                            0))))))),
+                                                            0)))))),
          effectType=ifelse(name %in% c("download_time",
                 "latency",
                 "conn_type",
                 "no_of_devices",
-                "province",
                 "tests",
                 "year",
                 "quarter"),"Fixed","Random")) %>% 
@@ -108,6 +118,80 @@ dagify(download_time~latency,
   ggtitle("DAG of relationship between Fixed Effects and Download/Upload Time")+
   theme_dag()
 ```
+
+It is from this DAG that the following mixed model is constructed. 
+
+$$Y = X\beta + Zb$$ 
+
+Where $X$ is the design matrix for the fixed effects, $Z$ is the design matrix of the random effects and $\beta$ and $b$ are the  fixed and random effects vectors. The fixed and random effects are: 
+
+
+| Fixed Effects   | Random Effect |
+| --------------- | ------------- |
+| No. of devices  |  Province     |
+| Connection Type |               |
+| No. of Tests    |               |
+| Year            |               |
+| Quarter         |               |
+| Year*Quarter    |               |
+
+After running this model in SAS note the following: 
+
+
+
+```{r}
+X_download<- model.matrix(avg_d_kbps~ devices + conn_type+ tests + year*quarter + PRNAME,data=dt %>% 
+  dplyr::select(avg_d_kbps,PRNAME, devices, conn_type, tests, year,quarter))
+```
+
+```{r}
+library(lme4)
+
+fit_download_time <- lmer(avg_d_kbps~ devices + conn_type+ tests + year*quarter + (1|PRNAME), data= data.frame(dt,stringsAsFactors = T))
+```
+```{r}
+summary(fit_download_time)
+```
+## Rural and Underserved communities in terms of progress towards the Commitment
+
+```{r}
+dt %>% 
+  dplyr::select(avg_d_kbps,PRNAME, devices, conn_type, tests, year,quarter) %>% 
+  group_by(PRNAME,year,quarter) %>% 
+  summarise(avg_download_province = mean(avg_d_kbps)) %>%
+  mutate(year_quarter=paste(year,quarter),
+         Province= ifelse(grepl("\\/",PRNAME),PRNAME %>% str_extract('.*(?= \\/)'),PRNAME)) %>% 
+  ggplot(mapping=aes(x= year_quarter,y=avg_download_province,color=Province,group=Province))+
+  geom_point()+
+  geom_line()+
+  facet_wrap(~Province)+
+  ggtitle("Download Speed")+
+  theme(legend.position = "none",
+        axis.ticks.x = element_blank(),
+        axis.text.x = element_blank(),
+        axis.title = element_blank())
+```
+```{r}
+dt %>% 
+  dplyr::select(avg_u_kbps,PRNAME, devices, conn_type, tests, year,quarter) %>% 
+  group_by(PRNAME,year,quarter) %>% 
+  summarise(avg_upload_province = mean(avg_u_kbps)) %>%
+  mutate(year_quarter=paste(year,quarter),
+         Province= ifelse(grepl("\\/",PRNAME),PRNAME %>% str_extract('.*(?= \\/)'),PRNAME)) %>% 
+  ggplot(mapping=aes(x= year_quarter,y=avg_upload_province,color=Province,group=Province))+
+  geom_point()+
+  geom_line()+
+  facet_wrap(~Province)+
+  ggtitle("Upload Speed")+
+  theme(legend.position = "none",
+        axis.ticks.x = element_blank(),
+        axis.text.x = element_blank(),
+        axis.title = element_blank())
+```
+
+## The identification of statistically reliable methods to assess and compare rural and underserved communities's realized internet access.
+
+* Test test test.
 
 ## Maps
 
@@ -123,12 +207,79 @@ canada_map <- world_map %>% filter(name =="Canada")
 
 
 ```{r}
-dtt %>% 
-  ggplot()+
-  geom_sf()
+# dtt %>%
+#   ggplot()+
+#   geom_sf()
 ```
+
+```{r}
+# Loading images
+setwd("/home/ben2908")
+
+df<- read_sf('ookla-canada-speed-tiles.shp')
+
+df2<- read_sf('lpr_000b16a_e.shp')
+```
+
+
+```{r}
+# ggplot()+
+#   geom_sf(data=df2)+
+#   geom_sf(data=df,mapping=aes(color=avg_d_kbps))+
+#   ggtitle("Average Download Times in Canada")+
+#   facet_wrap(year~quarter)
+```
+
+```{r}
+
+# ggplot()+
+#   geom_sf(data=df2)+
+#   geom_sf(data=df,mapping=aes(color=avg_u_kbps))+
+#   ggtitle("Average Upload Times in Canada")+
+#   facet_wrap(year~quarter)
+```
+
+
+```{r}
+# ggplot()+
+#   geom_sf(data=df2)+
+#   geom_sf(data=df,mapping=aes(color=avg_lat_ms))+
+#   ggtitle("Average Latency Times in Canada")+
+#   facet_wrap(year~quarter)
+```
+
 
 
 # References
 
 # Code Appendix
+
+## SAS Code
+
+``` sas
+/*Update File Path Accordingly*/
+FILENAME REFFILE '.../ookla-canada-speed-tiles.csv';
+PROC IMPORT DATAFILE=REFFILE
+	DBMS=CSV
+	OUT=DT;
+	GETNAMES=YES;
+RUN;
+
+PROC CONTENTS DATA=DT; 
+RUN;
+
+/*Download Time*/
+proc mixed data=DT method=reml covtest;
+class PRNAME quarter year conn_type;
+model avg_d_kbps= devices conn_type tests year quarter quarter*year;
+random PRNAME/s;
+run;
+
+
+/*Upload Time*/
+proc mixed data=DT method=reml covtest;
+class PRNAME quarter year conn_type;
+model avg_u_kbps= devices conn_type tests year quarter quarter*year;
+random PRNAME/s;
+run;
+```
