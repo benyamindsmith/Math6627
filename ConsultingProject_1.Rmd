@@ -45,19 +45,66 @@ dt<- readr::read_csv("./ookla-canada-speed-tiles.csv")
 ```
 
 ```{r, fig.cap="Missing data present in dataset provied"}
-# naniar::vis_miss(dt ,warn_large_data = FALSE)+
-#   theme(axis.text.x=element_text(angle=90))
+naniar::vis_miss(dt ,warn_large_data = FALSE)+
+  theme(axis.text.x=element_text(angle=90))
 ```
 
-Since this information is not relevant to the analysis it does not present any challenges. 
+After removing the rows with missing data, the remaining sample is  1,252,560 rows, which is still usable for this analysis. 
 
 # Analysis
+
+
+## Rural and Urban Towns
+
+```{r}
+# Need to filter based on PCCLASS
+dt %>% 
+  filter(!is.na(PCCLASS)) %>% 
+  group_by(PCCLASS,PRNAME,year,quarter) %>% 
+  summarize(average_d_time = mean(avg_d_kbps)) %>% 
+  mutate(year_quarter=paste(year,quarter),
+         Province= ifelse(grepl("\\/",PRNAME),PRNAME %>% str_extract('.*(?= \\/)'),PRNAME),
+         popcenter_class = ifelse(PCCLASS==2, "Small (1000-29,999)",ifelse(PCCLASS==3, "Medium (30,000-99,999)",ifelse(PCCLASS==4,"Large (>100,000)","OTHER")))) %>% 
+  ggplot(mapping=aes(x= year_quarter,y=average_d_time,color= popcenter_class,group= popcenter_class))+
+  geom_point()+
+  geom_line()+
+  facet_wrap(~Province)+
+  ggtitle("Download Speed 2019-2021")+
+  scale_color_discrete(guide = guide_legend(reverse=TRUE))+
+  theme(axis.ticks.x = element_blank(),
+        axis.text.x = element_blank(),
+        axis.title = element_blank(),
+        legend.title=element_blank(),
+        legend.position = "bottom")
+
+
+# Need to filter based on PCCLASS
+dt %>% 
+  filter(!is.na(PCCLASS)) %>% 
+  group_by(PCCLASS,PRNAME,year,quarter) %>% 
+  summarize(average_u_time = mean(avg_u_kbps)) %>% 
+  mutate(year_quarter=paste(year,quarter),
+         Province= ifelse(grepl("\\/",PRNAME),PRNAME %>% str_extract('.*(?= \\/)'),PRNAME),
+         popcenter_class = ifelse(PCCLASS==2, "Small (1000-29,999)",ifelse(PCCLASS==3, "Medium (30,000-99,999)",ifelse(PCCLASS==4,"Large (>100,000)","OTHER")))) %>% 
+  ggplot(mapping=aes(x= year_quarter,y=average_u_time,color= popcenter_class,group= popcenter_class))+
+  geom_point()+
+  geom_line()+
+  facet_wrap(~Province)+
+  ggtitle("Upload Speed 2019-2021")+
+  scale_color_discrete(guide = guide_legend(reverse=TRUE))+
+  theme(axis.ticks.x = element_blank(),
+        axis.text.x = element_blank(),
+        axis.title = element_blank(),
+        legend.title=element_blank(),
+        legend.position = "bottom")
+
+```
 
 ## Correlation Between Upload, Download and Latency times
 
 ```{r}
 dt %>% 
-  dplyr::select(avg_d_kbps,avg_u_kbps, avg_lat_ms) %>% 
+  dplyr::select(avg_d_kbps,avg_u_kbps, avg_lat_ms,tests,devices) %>% 
   cor() %>% 
   melt() %>% 
   ggplot(mapping=aes(x=Var2,y=Var1,fill=value))+
@@ -126,14 +173,14 @@ $$Y = X\beta + Zb$$
 Where $X$ is the design matrix for the fixed effects, $Z$ is the design matrix of the random effects and $\beta$ and $b$ are the  fixed and random effects vectors. The fixed and random effects are: 
 
 
-| Fixed Effects   | Random Effect |
-| --------------- | ------------- |
-| No. of devices  |  Province     |
-| Connection Type |               |
-| No. of Tests    |               |
-| Year            |               |
-| Quarter         |               |
-| Year*Quarter    |               |
+| Fixed Effects   | Random Effect                        |
+| --------------- | ------------------------------------ |
+| No. of devices  |  Province                            |
+| Connection Type |  Population Center Class             |
+| No. of Tests    |  Province*Population Center Class    |
+| Year            |                                      |
+| Quarter         |                                      |
+| Year*Quarter    |                                      |
 
 After running this model in SAS note the following: 
 
@@ -147,7 +194,7 @@ X_download<- model.matrix(avg_d_kbps~ devices + conn_type+ tests + year*quarter 
 ```{r}
 library(lme4)
 
-fit_download_time <- lmer(avg_d_kbps~ devices + conn_type+ tests + year*quarter + (1|PRNAME), data= data.frame(dt,stringsAsFactors = T))
+fit_download_time <- lmer(avg_d_kbps~ devices + conn_type+ tests + year*quarter+(1|PRNAME)+(1|PCCLASS) +(1|PRNAME:PCCLASS), data= data.frame(dt %>% filter(!is.na(PCCLASS)),stringsAsFactors = T))
 ```
 ```{r}
 summary(fit_download_time)
@@ -155,39 +202,64 @@ summary(fit_download_time)
 ## Rural and Underserved communities in terms of progress towards the Commitment
 
 ```{r}
+# Need to filter based on PCCLASS
 dt %>% 
-  dplyr::select(avg_d_kbps,PRNAME, devices, conn_type, tests, year,quarter) %>% 
-  group_by(PRNAME,year,quarter) %>% 
-  summarise(avg_download_province = mean(avg_d_kbps)) %>%
+  filter(!is.na(PCCLASS)) %>% 
+  group_by(PCCLASS,PRNAME,year,quarter) %>% 
+  summarize(average_d_time = mean(avg_d_kbps)) %>% 
   mutate(year_quarter=paste(year,quarter),
-         Province= ifelse(grepl("\\/",PRNAME),PRNAME %>% str_extract('.*(?= \\/)'),PRNAME)) %>% 
-  ggplot(mapping=aes(x= year_quarter,y=avg_download_province,color=Province,group=Province))+
+         Province= ifelse(grepl("\\/",PRNAME),PRNAME %>% str_extract('.*(?= \\/)'),PRNAME),
+         popcenter_class = ifelse(PCCLASS==2, "Small (1000-29,999)",ifelse(PCCLASS==3, "Medium (30,000-99,999)",ifelse(PCCLASS==4,"Large (>100,000)","OTHER")))) %>% 
+  ggplot(mapping=aes(x= year_quarter,y=average_d_time,color= popcenter_class,group= popcenter_class))+
   geom_point()+
   geom_line()+
   facet_wrap(~Province)+
-  ggtitle("Download Speed")+
-  theme(legend.position = "none",
-        axis.ticks.x = element_blank(),
+  ggtitle("Download Speed 2019-2021")+
+  scale_color_discrete(guide = guide_legend(reverse=TRUE))+
+  theme(axis.ticks.x = element_blank(),
         axis.text.x = element_blank(),
-        axis.title = element_blank())
+        axis.title = element_blank(),
+        legend.title=element_blank(),
+        legend.position = "bottom")
+
+
+# Need to filter based on PCCLASS
+dt %>% 
+  filter(!is.na(PCCLASS)) %>% 
+  group_by(PCCLASS,PRNAME,year,quarter) %>% 
+  summarize(average_u_time = mean(avg_u_kbps)) %>% 
+  mutate(year_quarter=paste(year,quarter),
+         Province= ifelse(grepl("\\/",PRNAME),PRNAME %>% str_extract('.*(?= \\/)'),PRNAME),
+         popcenter_class = ifelse(PCCLASS==2, "Small (1000-29,999)",ifelse(PCCLASS==3, "Medium (30,000-99,999)",ifelse(PCCLASS==4,"Large (>100,000)","OTHER")))) %>% 
+  ggplot(mapping=aes(x= year_quarter,y=average_u_time,color= popcenter_class,group= popcenter_class))+
+  geom_point()+
+  geom_line()+
+  facet_wrap(~Province)+
+  ggtitle("Upload Speed 2019-2021")+
+  scale_color_discrete(guide = guide_legend(reverse=TRUE))+
+  theme(axis.ticks.x = element_blank(),
+        axis.text.x = element_blank(),
+        axis.title = element_blank(),
+        legend.title=element_blank(),
+        legend.position = "bottom")
+
 ```
+
 ```{r}
+# Average number of devices per tile over time
+
 dt %>% 
-  dplyr::select(avg_u_kbps,PRNAME, devices, conn_type, tests, year,quarter) %>% 
-  group_by(PRNAME,year,quarter) %>% 
-  summarise(avg_upload_province = mean(avg_u_kbps)) %>%
-  mutate(year_quarter=paste(year,quarter),
-         Province= ifelse(grepl("\\/",PRNAME),PRNAME %>% str_extract('.*(?= \\/)'),PRNAME)) %>% 
-  ggplot(mapping=aes(x= year_quarter,y=avg_upload_province,color=Province,group=Province))+
-  geom_point()+
-  geom_line()+
-  facet_wrap(~Province)+
-  ggtitle("Upload Speed")+
-  theme(legend.position = "none",
-        axis.ticks.x = element_blank(),
-        axis.text.x = element_blank(),
-        axis.title = element_blank())
+  filter(!is.na(PCCLASS)) %>% 
+  group_by(PCCLASS,PRNAME,quadkey) %>% 
+  summarize(avg_devices = mean(devices),
+            avg_d_kbps=mean(avg_d_kbps)) %>% 
+    mutate(Province= ifelse(grepl("\\/",PRNAME),PRNAME %>% str_extract('.*(?= \\/)'),PRNAME),
+           popcenter_class = ifelse(PCCLASS==2, "Small (1000-29,999)",ifelse(PCCLASS==3, "Medium (30,000-99,999)",ifelse(PCCLASS==4,"Large (>100,000)","OTHER"))))
+  ggplot()+
+  geom_point(mapping=aes(x=avg_devices,y=avg_d_kbps,color=popcenter_class))+
+  facet_wrap(~Province)
 ```
+
 
 ## The identification of statistically reliable methods to assess and compare rural and underserved communities's realized internet access.
 
