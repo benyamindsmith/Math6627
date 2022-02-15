@@ -5,7 +5,7 @@ author: "Benjamin Smith"
 date: "`r format(Sys.time(), '%d %B %Y')`"
 output:
   pdf_document: default
-  toc: yes
+  toc: true
 
 ---
 
@@ -31,7 +31,7 @@ The following analysis aims to address the above in a practical and concise mann
 
 The data was made available by the [Statiscal Society of Canada](https://ssc.ca/en/case-study/towards-a-clear-understanding-rural-internet-what-statistical-measures-can-be-used-assess) with [Ookla](https://www.ookla.com) and [Statistics Canada](https://www.statcan.gc.ca/en/start). One of the first things to check regarding the data is to see if any missing data is present in the dataset. Figure 1 shows that most of the missing data is related to population center information. Namely data on population center id, type and class (PCUID, PCTYPE, PCLASS). 
 
-```{r message=FALSE, warning=FALSE}
+```{r message=FALSE, warning=FALSE, include=FALSE}
 library(tidyverse)
 library(ggthemes)
 library(ggspatial)
@@ -46,7 +46,7 @@ setwd("/home/ben2908")
 dt<- readr::read_csv("./ookla-canada-speed-tiles.csv")
 ```
 
-```{r, fig.cap="Missing data present in dataset provied"}
+```{r echo=FALSE, fig.cap="Missing data present in dataset provied", message=FALSE, warning=FALSE}
 naniar::vis_miss(dt ,warn_large_data = FALSE)+
   theme(axis.text.x=element_text(angle=90))
 ```
@@ -58,9 +58,12 @@ While it is possible to apply some treatment to the missing data, after removal,
 
 ## Current Realized And Forecasted Internet Speeds (Upload And Download)- A Statistical Analysis
 
-It is possible to describe the relationship between the current realized and forecasted internet speeds by use of a statistical model. For this analysis a mixed model structure is chosen with random effects being province, population class and their interaction. For choice of fixed effects in the model the use of directed acyclic graphs (DAGs) is employed for parameter selection. 
+It is possible to describe the relationship between the current realized and forecasted internet speeds by use of a statistical model. For this analysis a mixed model structure is chosen with random effects being province, population class and their interaction. For choice of fixed effects in the model the use of directed acyclic graphs (DAGs) is employed for parameter selection. Figure 2 is the DAG which was used for this model development. 
 
-```{r echo=FALSE, message=FALSE, warning=FALSE}
+<!---
+Need to add figure captions
+--->
+```{r echo=FALSE, message=FALSE, warning=FALSE, fig.cap="DAG representing the relationship between the fixed effects and upload/download time."}
 library(ggdag)
 
 dagify(download_time~latency,
@@ -72,30 +75,40 @@ dagify(download_time~latency,
        latency~ conn_type,
        latency~no_of_devices,
        year~quarter,
-       labels=c("download_time"="Download/Upload Time",
+       download_time~pcclass,
+       download_time~prname,
+       pcclass~prname,
+       labels=c("download_time"="Download/Upload Speed",
                 "latency" = "Latency",
                 "conn_type"="Connection Type\n(Fixed,Mobile)",
                 "no_of_devices"="No. of Devices",
                 "tests"="No. of tests",
                 "year"="Year\n(2019,2020,2021)",
-                "quarter"="Quarter\n(Q1,Q2,Q3,Q4)")) %>% 
+                "quarter"="Quarter\n(Q1,Q2,Q3,Q4)",
+                "prname"="Province",
+                "pcclass"="Pop. Center\nClass")) %>% 
   tidy_dagitty() %>% 
-  mutate(xend=c(10.5,9,10.5,9,10.5,9,10.5,10.5,10.5,NA),
-         yend=c(0,0,0,0,0,-1.7,0,0,0,NA),
+  # prname (8,2) pcclass(8.5,1.5)
+  mutate(xend=c(10.5,9,10.5,9,10.5,10.5,8.5,10.5,9.5,10.5,10.5,10,NA),
+         yend=c(0,0,0,0,0,0,-2,0,-1.7,0,0,-2,NA),
          x=ifelse(name=="download_time",10.5,
                   ifelse(name=="latency",9,
                          ifelse(name=="conn_type",9.5,
-                                       ifelse(name=="tests",8.5,
-                                              ifelse(name=="year",9,
+                                       ifelse(name=="tests",10,
+                                              ifelse(name=="year",9.5,
                                                      ifelse(name=="quarter",10,
-                                                            8)))))),
+                                                        ifelse(name=="no_of_devices",8,
+                                                               ifelse(name=="prname",8,
+                                                                      8.5)))))))),
          y=ifelse(name=="download_time",0,
                   ifelse(name=="latency",0,
                          ifelse(name=="conn_type",1,
-                                       ifelse(name=="tests",-1,
+                                       ifelse(name=="tests",1,
                                               ifelse(name=="year",-1.7,
                                                      ifelse(name=="quarter",-2,
-                                                            0)))))),
+                                                             ifelse(name=="no_of_devices",0,
+                                                               ifelse(name=="prname",-1.5,
+                                                                      -2)))))))),
          effectType=ifelse(name %in% c("download_time",
                 "latency",
                 "conn_type",
@@ -104,41 +117,60 @@ dagify(download_time~latency,
                 "year",
                 "quarter"),"Fixed","Random")) %>% 
   ggdag(text=FALSE,use_labels = "label")+
-  ggtitle("DAG of relationship between Fixed Effects and Download/Upload Time")+
+  ggtitle("Relationship between Fixed Effects and Download/Upload Time")+
   theme_dag()
 ```
 
-Thus, the fixed and random effects are: 
+The fixed and random effects are listed in table 1 below:  
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+tibble(`Fixed Effects` = c("No. of devices",
+                           "Connection Type",
+                           "No. of Tests",
+                           "Year",
+                           "Quarter",
+                           "Province",
+                           "Population Center Class",
+                           "Year*Quarter",
+                           "Province*Population Center Class"),
+       `Random Effect` = c("quadkey", rep("",8))) %>% knitr::kable(caption = "Fixed and Random Effects used to describe Upload/Download Speed")
+```
 
 
-| Fixed Effects   | Random Effect                        |
-| --------------- | ------------------------------------ |
-| No. of devices  |  Province                            |
-| Connection Type |  Population Center Class             |
-| No. of Tests    |  Province*Population Center Class    |
-| Year            |                                      |
-| Quarter         |                                      |
-| Year*Quarter    |                                      |
 
 The model can be represented in the following form:
 
 $$Y = X\beta + Zb$$ 
 
-Where $X$ is the design matrix for the fixed effects, $Z$ is the design matrix of the random effects and $\beta$ and $b$ are the  fixed and random effects vectors. 
-
-After running this model in SAS note the following: 
+Where $Y$ is the response variable (i.e. download/upload speed) $X$ is the design matrix for the fixed effects, $Z$ is the design matrix of the random effects and $\beta$ and $b$ are the  fixed and random effects vectors. Two separate models are constructed for download and upload speed. Figures 3 and 5 show that the fixed effects are all significant at the 0.001 level with the exception to the upload speed model which lists the p-values of the effects of the number of tests conducted and the population center class as 0.0011 and 0.0039 respectively. Figures 4 and 6 show that the random effects of the individual tile measured is significant at the 0.001 level. 
 
 
+```{r echo=FALSE, fig.align='center', fig.cap="Type 3 tests of fixed effects for download speed model", out.width="45%"}
+knitr::include_graphics("./sasTables/downloadFixed.png")
+```
 
-## Rural and Urban Towns
 
-Figures 2 and 3 show that on average, most provinces are keeping to the Commitment above and beyond the requirements provided for all communities. The provinces which appear to be experiencing challenges with this are the Northwest Territories, Nunavut and Yukon- all of whom have available data on small population centers^[According to Wikipedia there are only small population centers in the Canadian Territories as of 2016. Reference: https://en.wikipedia.org/wiki/List_of_population_centres_in_the_Canadian_Territories]. While this does offer a "birds eye view" a more accurate portrayal is to look at the proportion of tiles in population centers which are meeting the agreement  and which are not. Figures 4-9 outline such characteristics. In terms of small population centers, all provinces appear to be making progress in the Comittment with the exception to Nunavut which appears to be struggling.
+```{r echo=FALSE, fig.align='center', fig.cap="Covariance parameter estimates of the random effects in the download speed model", out.width="45%"}
+knitr::include_graphics("./sasTables/downloadCovariance.png")
+```
 
-<!---
-Need to write Figure captions
---->
 
-```{r echo=FALSE, message=FALSE, warning=FALSE}
+```{r echo=FALSE, fig.align='center', fig.cap="Type 3 tests of fixed effects for upload speed model", out.width="45%"}
+knitr::include_graphics("./sasTables/uploadFixed.png")
+```
+
+
+```{r echo=FALSE, fig.align='center', fig.cap="Covariance parameter estimates of the random effects in the download speed model", out.width="45%"}
+knitr::include_graphics("./sasTables/uploadCovariance.png")
+```
+\newpage
+
+
+## Rural and Underserved communities in terms of progress towards the Commitment
+
+Figures 7 and 8 show that on average, most provinces are keeping to the Commitment above and beyond the requirements provided for all communities. The provinces which appear to be experiencing challenges with this are the Northwest Territories, Nunavut and Yukon- all of whom have available data on small population centers^[According to Wikipedia there are only small population centers in the Canadian Territories as of 2016. Reference: https://en.wikipedia.org/wiki/List_of_population_centres_in_the_Canadian_Territories]. While this does offer a "birds eye view" a more accurate portrayal is to look at the proportion of tiles in population centers which are meeting the agreement  and which are not. Figures 4-9 outline such characteristics. In terms of small population centers, all provinces appear to be making progress in the Comittment with the exception to Nunavut which appears to be struggling. For medium population centers, Manitoba appears to struggle with making any progress for upload time, but has improved in terms of download time.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, fig.cap="Average download speed accross provinces over time, by population center size"}
 # Need to filter based on PCCLASS
 dt %>% 
   filter(!is.na(PCCLASS)) %>% 
@@ -163,7 +195,7 @@ dt %>%
 ```
 
 
-```{r echo=FALSE, message=FALSE, warning=FALSE}
+```{r echo=FALSE, message=FALSE, warning=FALSE,  fig.cap="Average upload speed accross provinces over time, by population center size"}
 # Need to filter based on PCCLASS
 dt %>% 
   filter(!is.na(PCCLASS)) %>% 
@@ -187,7 +219,7 @@ dt %>%
 
 ```
 
-```{r echo=FALSE, message=FALSE, warning=FALSE}
+```{r echo=FALSE, message=FALSE, warning=FALSE, fig.cap="Proportion of small population centers accross canada meeting the commitment download speed over time"}
 # Small Provinces
 
 smallProvs_Download<- dt %>%
@@ -213,11 +245,13 @@ smallProvs_Download<- do.call(rbind,
 )
 
 smallProvs_Download %>% 
-  ggplot(mapping=aes(x=year_quarter,y=prop,fill=d_status))+
-  geom_bar(stat="identity")+
+  ggplot(mapping=aes(x=year_quarter,y=prop,color=d_status, group = d_status))+
+  #geom_bar(stat="identity")+
+  geom_line()+
+  geom_point()+
   facet_wrap(~Province)+
-  ggtitle("Proportion of Small Population Centers Meeting the Commitment (Download Speed)")+
-  labs(y="Average Upload Speed (mbps)")+
+  ggtitle("Proportion of Small Population Centers Meeting the Commitment\n(Download Speed)")+
+  labs(y="Average Download Speed (mbps)")+
   scale_color_discrete(guide = guide_legend(reverse=TRUE))+
   theme(axis.ticks.x = element_blank(),
         axis.text.x = element_blank(),
@@ -227,7 +261,7 @@ smallProvs_Download %>%
              
 ```
 
-```{r echo=FALSE, message=FALSE, warning=FALSE}
+```{r echo=FALSE, message=FALSE, warning=FALSE, fig.cap= "Proportion of small population centers accross canada meeting the commitment upload speed over time"}
 
 smallProvs_Upload<- dt %>%
               mutate(year_quarter=paste(year,quarter),
@@ -252,10 +286,12 @@ smallProvs_Upload<- do.call(rbind,
 )
 
 smallProvs_Upload %>% 
-  ggplot(mapping=aes(x=year_quarter,y=prop,fill=u_status))+
-  geom_bar(stat="identity")+
+  ggplot(mapping=aes(x=year_quarter,y=prop,color=u_status, group = u_status))+
+  #geom_bar(stat="identity")+
+  geom_line()+
+  geom_point()+
   facet_wrap(~Province)+
-  ggtitle("Proportion of Small Population Centers Meeting the Commitment (Upload Speed)")+
+  ggtitle("Proportion of Small Population Centers Meeting the Commitment\n(Upload Speed)")+
   labs(y="Average Upload Speed (mbps)")+
   scale_color_discrete(guide = guide_legend(reverse=TRUE))+
   theme(axis.ticks.x = element_blank(),
@@ -265,7 +301,7 @@ smallProvs_Upload %>%
         legend.position = "bottom")
 ```
 
-```{r echo=FALSE, message=FALSE, warning=FALSE}
+```{r echo=FALSE, message=FALSE, warning=FALSE, fig.cap= "Proportion of medium population centers accross canada meeting the commitment download speed over time"}
 # Medium 
 medProvs_Download<- dt %>%
               mutate(year_quarter=paste(year,quarter),
@@ -290,10 +326,12 @@ medProvs_Download<- do.call(rbind,
 )
 
 medProvs_Download %>% 
-  ggplot(mapping=aes(x=year_quarter,y=prop,fill=d_status))+
-  geom_bar(stat="identity")+
+  ggplot(mapping=aes(x=year_quarter,y=prop,color=d_status, group = d_status))+
+  #geom_bar(stat="identity")+
+  geom_line()+
+  geom_point()+
   facet_wrap(~Province)+
-  ggtitle("Proportion of Medium Population Centers Meeting the Commitment (Download Speed)")+
+  ggtitle("Proportion of Medium Population Centers Meeting the Commitment\n(Download Speed)")+
   labs(y="Average Upload Speed (mbps)")+
   scale_color_discrete(guide = guide_legend(reverse=TRUE))+
   theme(axis.ticks.x = element_blank(),
@@ -304,7 +342,7 @@ medProvs_Download %>%
              
 ```
 
-```{r echo=FALSE, message=FALSE, warning=FALSE}
+```{r echo=FALSE, message=FALSE, warning=FALSE,  fig.cap= "Proportion of medium population centers accross canada meeting the commitment upload speed over time"}
 # Medium 
 medProvs_Upload<- dt %>%
               mutate(year_quarter=paste(year,quarter),
@@ -329,10 +367,12 @@ medProvs_Upload<- do.call(rbind,
 )
 
 medProvs_Upload %>% 
-  ggplot(mapping=aes(x=year_quarter,y=prop,fill=u_status))+
-  geom_bar(stat="identity")+
+  ggplot(mapping=aes(x=year_quarter,y=prop,color=u_status, group = u_status))+
+  #geom_bar(stat="identity")+
+  geom_line()+
+  geom_point()+
   facet_wrap(~Province)+
-  ggtitle("Proportion of Medium Population Centers Meeting the Commitment (Upload Speed)")+
+  ggtitle("Proportion of Medium Population Centers Meeting the Commitment\n(Upload Speed)")+
   labs(y="Average Upload Speed (mbps)")+
   scale_color_discrete(guide = guide_legend(reverse=TRUE))+
   theme(axis.ticks.x = element_blank(),
@@ -343,7 +383,7 @@ medProvs_Upload %>%
              
 ```
 
-```{r echo=FALSE, message=FALSE, warning=FALSE}
+```{r echo=FALSE, message=FALSE, warning=FALSE,  fig.cap= "Proportion of large population centers accross canada meeting the commitment download speed over time"}
 # Large 
 largeProvs_Download<- dt %>%
               mutate(year_quarter=paste(year,quarter),
@@ -368,11 +408,13 @@ largeProvs_Download<- do.call(rbind,
 )
 
 largeProvs_Download %>% 
-  ggplot(mapping=aes(x=year_quarter,y=prop,fill=d_status))+
-  geom_bar(stat="identity")+
+ ggplot(mapping=aes(x=year_quarter,y=prop,color=d_status, group = d_status))+
+  #geom_bar(stat="identity")+
+  geom_line()+
+  geom_point()+
   facet_wrap(~Province)+
-  ggtitle("Proportion of Large Population Centers Meeting the Commitment (Download Speed)")+
-  labs(y="Average Upload Speed (mbps)")+
+  ggtitle("Proportion of Large Population Centers Meeting the Commitment\n(Download Speed)")+
+  labs(y="Average Download Speed (mbps)")+
   scale_color_discrete(guide = guide_legend(reverse=TRUE))+
   theme(axis.ticks.x = element_blank(),
         axis.text.x = element_blank(),
@@ -381,7 +423,7 @@ largeProvs_Download %>%
         legend.position = "bottom")
 ```
 
-```{r echo=FALSE, message=FALSE, warning=FALSE}
+```{r echo=FALSE, message=FALSE, warning=FALSE,  fig.cap= "Proportion of medium population centers accross canada meeting the commitment upload speed over time"}
 # Large 
 largeProvs_Upload<- dt %>%
               mutate(year_quarter=paste(year,quarter),
@@ -406,10 +448,12 @@ largeProvs_Upload<- do.call(rbind,
 )
 
 largeProvs_Upload %>% 
-  ggplot(mapping=aes(x=year_quarter,y=prop,fill=u_status))+
-  geom_bar(stat="identity")+
+  ggplot(mapping=aes(x=year_quarter,y=prop,color=u_status, group = u_status))+
+  #geom_bar(stat="identity")+
+  geom_line()+
+  geom_point()+
   facet_wrap(~Province)+
-  ggtitle("Proportion of Large Population Centers Meeting the Commitment (Upload Speed)")+
+  ggtitle("Proportion of Large Population Centers Meeting the Commitment\n(Upload Speed)")+
   labs(y="Average Upload Speed (mbps)")+
   scale_color_discrete(guide = guide_legend(reverse=TRUE))+
   theme(axis.ticks.x = element_blank(),
@@ -419,98 +463,51 @@ largeProvs_Upload %>%
         legend.position = "bottom")
 ```
 
-
-
-```{r}
-X_download<- model.matrix(avg_d_kbps~ devices + conn_type+ tests + year*quarter + PRNAME,data=dt %>% 
-  dplyr::select(avg_d_kbps,PRNAME, devices, conn_type, tests, year,quarter))
-```
-
-```{r}
-library(lme4)
-
-fit_download_time <- lmer(avg_d_kbps~ devices + conn_type+ tests + year*quarter+(1|PRNAME)+(1|PCCLASS) +(1|PRNAME:PCCLASS), data= data.frame(dt %>% filter(!is.na(PCCLASS)),stringsAsFactors = T))
-```
-```{r}
-summary(fit_download_time)
-```
-
-## Rural and Underserved communities in terms of progress towards the Commitment
-
+\newpage
 
 ## The identification of statistically reliable methods to assess and compare rural and underserved communities's realized internet access.
 
+To identify statistically reliable methods with which to assess and compare rural and undeserved communities, LASSO regression with 10-fold cross-validation is applied to the data set where the variables of interest are download and upload speeds and the predictors are all the other variables with exception to the geometry, year and quarter of the observations as they are not meaningful in terms of statistically reliable methods moving forward. Additionally, superfluous variables such as individual classification id's (i.e. `PRUID`, `CDUID`, `PCUID`) have been removed. Similar to to the first part of the analysis, two separate models are created for download and upload speeds.
 
-## Correlation Between Upload, Download and Latency times
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=TRUE}
+library(glmnet)
 
-```{r}
-dt %>% 
-  dplyr::select(avg_d_kbps,avg_u_kbps, avg_lat_ms,tests,devices) %>% 
-  cor() %>% 
-  melt() %>% 
-  ggplot(mapping=aes(x=Var2,y=Var1,fill=value))+
-  geom_tile()+
-  scale_fill_gradient()+
-  geom_text(mapping=aes(label=scales::percent(value)))+
-  theme(axis.title = element_blank())
-```
-* Test test test.
+y_download <- dt$avg_d_kbps
+y_upload <- dt$avg_d_kbps
+X <- data.matrix(dt[,-which(names(dt) %in% c("avg_d_kbps","avg_u_kbps","geometry","year","quarter","PRUID","CDUID","PCUID"))])
 
-## Maps
+#perform k-fold cross-validation to find optimal lambda value
+cv_model_download <- cv.glmnet(X, y_download, alpha = 1)
+cv_model_upload <-cv.glmnet(X, y_upload, alpha = 1)
 
-```{r}
-# Convert dataset to sf object
-dtt<- dt %>% st_as_sf(wkt  = "geometry")
+#find optimal lambda value that minimizes test MSE
+best_lambda_download <- cv_model_download$lambda.min
+best_lambda_upload <- cv_model_upload$lambda.min
 ```
 
-```{r}
-world_map <- ne_countries(scale = "large", returnclass = 'sf')
-canada_map <- world_map %>% filter(name =="Canada")
+```{r echo=FALSE, message=FALSE, warning=FALSE,fig.cap="Download Time"}
+#produce plot of test MSE by lambda value
+plot(cv_model_download, main =expression("MSE vs "*lambda*" (Download Time)"))
 ```
 
+```{r echo=FALSE, message=FALSE, warning=FALSE,fig.cap="Upload"}
+plot(cv_model_upload, main =expression("MSE vs "*lambda*" (Upload Time)"))
 
-```{r}
-# dtt %>%
-#   ggplot()+
-#   geom_sf()
-```
-
-```{r}
-# Loading images
-setwd("/home/ben2908")
-
-df<- read_sf('ookla-canada-speed-tiles.shp')
-
-df2<- read_sf('lpr_000b16a_e.shp')
 ```
 
 
-```{r}
-# ggplot()+
-#   geom_sf(data=df2)+
-#   geom_sf(data=df,mapping=aes(color=avg_d_kbps))+
-#   ggtitle("Average Download Times in Canada")+
-#   facet_wrap(year~quarter)
-```
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+best_model_download <- glmnet(X, y_download, alpha = 1, lambda = best_lambda_download)
+best_model_upload <- glmnet(X, y_upload, alpha = 1, lambda = best_lambda_upload)
 
-```{r}
-
-# ggplot()+
-#   geom_sf(data=df2)+
-#   geom_sf(data=df,mapping=aes(color=avg_u_kbps))+
-#   ggtitle("Average Upload Times in Canada")+
-#   facet_wrap(year~quarter)
+as.matrix(coef(best_model_download),rownames) %>% knitr::kable(caption="Sparse Estimates for Download Speed Predicton")
 ```
 
 
-```{r}
-# ggplot()+
-#   geom_sf(data=df2)+
-#   geom_sf(data=df,mapping=aes(color=avg_lat_ms))+
-#   ggtitle("Average Latency Times in Canada")+
-#   facet_wrap(year~quarter)
-```
+```{r echo=FALSE, message=FALSE, warning=FALSE}
 
+as.matrix(coef(best_model_upload),rownames) %>% knitr::kable(caption="Sparse Estimates for Upload Speed Predicton")
+```
 
 
 # References
@@ -532,17 +529,19 @@ PROC CONTENTS DATA=DT;
 RUN;
 
 /*Download Time*/
-proc mixed data=DT method=reml covtest;
-class PRNAME quarter year conn_type;
-model avg_d_kbps= devices conn_type tests year quarter quarter*year;
-random PRNAME/s;
-run;
+PROC MIXED DATA=DT METHOD=REML COVTEST;
+CLASS PRNAME PCCLASS quarter year conn_type quadkey;
+MODEL avg_d_kbps= devices conn_type tests year quarter quarter*year PRNAME PCCLASS PRNAME*PCCLASS;
+RANDOM quadkey/s;
+RUN;
 
 
 /*Upload Time*/
-proc mixed data=DT method=reml covtest;
-class PRNAME quarter year conn_type;
-model avg_u_kbps= devices conn_type tests year quarter quarter*year;
-random PRNAME/s;
-run;
+PROC MIXED DATA=DT METHOD=REML COVTEST;
+CLASS PRNAME quarter year conn_type quadkey;
+MODEL avg_u_kbps= devices conn_type tests year quarter quarter*year PRNAME PCCLASS PRNAME*PCCLASS;
+RANDOM quadkey/s;
+RUN;
+
+
 ```
