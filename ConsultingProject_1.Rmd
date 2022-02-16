@@ -469,6 +469,8 @@ largeProvs_Upload %>%
 
 To identify statistically reliable methods with which to assess and compare rural and undeserved communities, LASSO regression with 10-fold cross-validation is applied to the data set where the variables of interest are download and upload speeds and the predictors are all the other variables with exception to the geometry, year and quarter of the observations as they are not meaningful in terms of statistically reliable methods moving forward. Additionally, superfluous variables such as individual classification id's (i.e. `PRUID`, `CDUID`, `PCUID`) have been removed. Similar to to the first part of the analysis, two separate models are created for download and upload speeds.
 
+Figures 15 and 16 show the test MSE by $\lambda$ value plotted. From the visuals it can be determined that $\lambda_d=\lambda_u=35.96566$. Tables 2 and 3 show the respective sparse estimates. From the sparse estimates it is possible to determine which methods can be used to evaluate internet access. Specifically, it is found that location is largely important with looking at a location's statistical area of classification, the province it belongs to, its dissemination area,its census division. In addition to this, information such as its average latency, the number of tests conducted, the devices used and the connection type play prime importance. Surprisingly information on the population center type does not prove to be significant, however this is like due to the fact that lower levels of observations are considered to be significant.
+
 ```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=TRUE}
 library(glmnet)
 
@@ -485,16 +487,21 @@ best_lambda_download <- cv_model_download$lambda.min
 best_lambda_upload <- cv_model_upload$lambda.min
 ```
 
+
 ```{r echo=FALSE, message=FALSE, warning=FALSE,fig.cap="Download Time"}
 #produce plot of test MSE by lambda value
-plot(cv_model_download, main =expression("MSE vs "*lambda*" (Download Time)"))
+plot(cv_model_download, main =expression("MSE vs "*lambda[d]*" (Download Time)"))
 ```
+
+
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE,fig.cap="Upload"}
-plot(cv_model_upload, main =expression("MSE vs "*lambda*" (Upload Time)"))
+plot(cv_model_upload, main =expression("MSE vs "*lambda[u]*" (Upload Time)"))
 
 ```
 
+
+\newpage
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 best_model_download <- glmnet(X, y_download, alpha = 1, lambda = best_lambda_download)
@@ -509,6 +516,7 @@ as.matrix(coef(best_model_download),rownames) %>% knitr::kable(caption="Sparse E
 as.matrix(coef(best_model_upload),rownames) %>% knitr::kable(caption="Sparse Estimates for Upload Speed Predicton")
 ```
 
+\newpage
 
 # References
 
