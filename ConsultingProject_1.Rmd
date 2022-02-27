@@ -17,11 +17,11 @@ output:
 
 # Introduction
 
-(Quoted from the SCC website)
+(Quoted from the SSC website)
 
 The Government of Canada has committed to helping 95% of Canadian households and businesses access high-speed internet at minimum speeds of 50 Mbps download and 10 Mbps upload (hereinafter referred to as the “Commitment”) by 2026, and 100% by 2030. According to the CRTC, currently 45.6% of rural community households have access to the Commitment based on what’s available to them via an Internet Service Provider (e.g. Shaw, Telus, etc.) in their region, rather than what a rural household actually realizes at home in terms of internet speeds. 
 
-For this case study, the SCC would like to understand the state of internet connectivity in both rural and underserved Canadian communities using consumer-provided data. The SCC claims that by using data directly from the consumer, it is possible to better understand connectivity in these communities as measured by the consumers in their own homes. 
+For this case study, the SSC would like to understand the state of internet connectivity in both rural and underserved Canadian communities using consumer-provided data. The SSC claims that by using data directly from the consumer, it is possible to better understand connectivity in these communities as measured by the consumers in their own homes. 
 
 Specifically, the following is desired:
 
@@ -29,15 +29,13 @@ Specifically, the following is desired:
 
 2. A comparative analysis of rural and underserved communities in terms of progress towards the Commitment; and
 
-3. The identification of statistically reliable methods to assess and compare rural and underserved communities's realized internet access.For this study in particular, the identification of reliable and reproducible statistical methods to understand connectivity of rural and underserved Canadian communities is critical. 
+3. The identification of statistically reliable methods to assess and compare rural and underserved communities' realized internet access.
 
 The following analysis aims to address the above in a practical and concise manner. 
 
 # The Data
 
-The data was made available by the [Statiscal Society of Canada](https://ssc.ca/en/case-study/towards-a-clear-understanding-rural-internet-what-statistical-measures-can-be-used-assess) with [Ookla](https://www.ookla.com) and [Statistics Canada](https://www.statcan.gc.ca/en/start). One of the first things to check regarding the data is to see if any missing data is present in the dataset. Figure 1 shows that most of the missing data is related to population center information. Namely data on population center id, type and class (PCUID, PCTYPE, PCLASS). While it is possible to apply some treatment to the missing data, after removal, the remaining sample is  1,252,560 rows, which is still usable for this analysis. As such, the dataset is used "as is".
-
-For reason why imputation was not applied to this dataset, please see "A note about missing data".
+The data was made available by the [Statiscal Society of Canada](https://ssc.ca/en/case-study/towards-a-clear-understanding-rural-internet-what-statistical-measures-can-be-used-assess) with [Ookla](https://www.ookla.com) and [Statistics Canada](https://www.statcan.gc.ca/en/start). One of the first things to check regarding the data is to see if any missing data is present in the dataset. Figure 1 shows that most of the missing data is related to population center information. Namely data on population center id, type and class (PCUID, PCTYPE, PCLASS). For this analysis, the dataset is used "as is". Reason why imputation was not applied to this dataset is discussed at the end of the report. 
 
 ```{r message=FALSE, warning=FALSE, include=FALSE}
 library(mice)
@@ -67,9 +65,9 @@ naniar::gg_miss_upset(dt)
 # Analysis
 
 
-## Current Realized And Forecasted Internet Speeds (Upload And Download)- A Statistical Analysis
+## Current Realized And Forecasted Internet Speeds - A Statistical Analysis
 
-It is possible to describe the relationship between the current realized and forecasted internet speeds by use of a statistical model. For this analysis a mixed model structure is chosen with random effect being the individual tile measured. For choice of fixed effects in the model the use of directed acyclic graphs (DAGs) is employed for parameter selection. Figure 2 is the DAG which was used for model development. 
+It is possible to describe the relationship between the current realized and forecasted internet speeds by use of a statistical model. For this analysis a mixed model structure is chosen with random effect being the individual tile measured. For choice of fixed effects in the model the use of directed acyclic graphs (DAGs) is employed for parameter selection. Figure 2 is the DAG which was used for model development. The fixed and random effects are thus listed in table 1 below:  
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE, fig.cap="DAG representing the relationship between the fixed effects and upload/download time."}
 library(ggdag)
@@ -129,7 +127,7 @@ dagify(download_time~latency,
   theme_dag()
 ```
 
-The fixed and random effects are thus listed in table 1 below:  
+
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 tibble(`Fixed Effects` = c("No. of devices",
@@ -152,7 +150,7 @@ $$Y = X\beta + Zb$$
 
 Where $Y$ is the response variable (i.e. download/upload speed) $X$ is the design matrix for the fixed effects, $Z$ is the design matrix of the random effects and $\beta$ and $b$ are the  fixed and random effects vectors. 
 
-Two separate models are constructed for download and upload speed. Figures 3 and 5 show that the fixed effects are all significant at the 0.001 level with the exception to the upload speed model which lists the p-values of the effects of the number of tests conducted and the population center class as 0.0011 and 0.0039 respectively. Figures 4 and 6 show that the random effects of the individual tile measured is significant at the 0.001 level. 
+Two separate models are constructed for download and upload speed and run in SAS. Figures 3 and 5 show that the fixed effects are all significant at the 0.001 level with the exception to the upload speed model which lists the p-values of the effects of the number of tests conducted and the population center class as 0.0011 and 0.0039 respectively. Figures 4 and 6 show that the random effects of the individual tile measured is significant at the 0.001 level. 
 
 
 ```{r echo=FALSE, fig.align='center', fig.cap="Type 3 tests of fixed effects for download speed model", out.width="45%"}
@@ -535,9 +533,9 @@ as.matrix(coef(best_model_upload),rownames) %>% knitr::kable(caption="Sparse Est
 
 ## A note about missing data
 
-After looking into the nature of the missing data, there is a reason for the missingness can be explained by the fact that classification in terms of population center does not make sense for it as the locations recorded with missing data on their population center are either rural or not associated with a population center. As such, the use of the LASSO regression has insight into why anything relating to population center is not significant while in terms of census division it is. Table 4 highlights this and it can be seen that the use of having a population center is not applicable as a statistical measure as opposed to census division. 
+After looking into the nature of the missing data, there is a reason for the missingness can be explained by the fact that classification in terms of population center does not make sense for it as the locations recorded with missing data on population center correspond to level 3 geographies. This can explains why the LASSO regression sparse extimates list anything related to population center is not significant while in terms of census division it is. Table 4 highlights this and it can be seen that the use of having a population center is not applicable as a statistical measure as opposed to census division. 
 
-With this discovery found later in the analysis, the topic of progress towards commitment was revisited. Figures 17 and 18 show that for rural populations all populations are making some progress in terms of download speed with the exception of Nunavut and Yukon whom appear to struggle in meeting the commitment. 
+With this discovery found later in the analysis, the topic of progress towards commitment was revisited. Figures 17 and 18 show that for level three geographies, all provinces are making some progress in terms of download speed with the exception of Nunavut and Yukon whom appear to struggle in meeting the commitment. 
 
 In terms of upload speed, Manitoba, Saskatchewan and Northwest Territories are the most noticeable in their progress. While Nunavut and Yukon appear to struggle. As far as other provinces are concerned progress is either slow or not noticeable.
 
@@ -552,7 +550,7 @@ temp %>%
 ```
 
 
-```{r echo=FALSE, message=FALSE, warning=FALSE,  fig.cap= "Proportion of rural populations accross Canada meeting the commitment download speed over time"}
+```{r echo=FALSE, message=FALSE, warning=FALSE,  fig.cap= "Proportion of level 3 divisions accross Canada meeting the commitment download speed over time"}
 rural_Download<- dt %>%
               mutate(year_quarter=paste(year,quarter),
                      Province= ifelse(grepl("\\/",PRNAME),PRNAME %>% str_extract('.*(?= \\/)'),PRNAME),
@@ -581,7 +579,7 @@ rural_Download %>%
   geom_line()+
   geom_point()+
   facet_wrap(~Province)+
-  ggtitle("Proportion of Rural Populations Meeting the Commitment\n(Download Speed)")+
+  ggtitle("Proportion of Level 3 Divisions Meeting the Commitment\n(Download Speed)")+
   labs(y="Average Download Speed (mbps)")+
   scale_color_discrete(guide = guide_legend(reverse=TRUE))+
   theme(axis.ticks.x = element_blank(),
@@ -592,7 +590,7 @@ rural_Download %>%
 ```
 
 
-```{r echo=FALSE, message=FALSE, warning=FALSE,  fig.cap= "Proportion of rural populations accross Canada meeting the commitment upload speed over time"}
+```{r echo=FALSE, message=FALSE, warning=FALSE,  fig.cap= "Proportion of level 3 divisions accross Canada meeting the commitment upload speed over time"}
 ruralProvs_Upload<- dt %>%
               mutate(year_quarter=paste(year,quarter),
                      Province= ifelse(grepl("\\/",PRNAME),PRNAME %>% str_extract('.*(?= \\/)'),PRNAME),
@@ -615,7 +613,7 @@ rural_Upload %>%
   geom_line()+
   geom_point()+
   facet_wrap(~Province)+
-  ggtitle("Proportion of Rural Populations Meeting the Commitment\n(Upload Speed)")+
+  ggtitle("Proportion of level 3 divisons Meeting the Commitment\n(Upload Speed)")+
   labs(y="Average Upload Speed (mbps)")+
   scale_color_discrete(guide = guide_legend(reverse=TRUE))+
   theme(axis.ticks.x = element_blank(),
@@ -632,7 +630,7 @@ rural_Upload %>%
 
 # Conclusion
 
-Incorporating population center type was useful for descriptive purposes as shown in the data. However, in terms of it being a statistical measure, it is not adequate as shown in the sparse estimates. Missing data relating to population center is accredited to the locations measured with that field missing not being related to a particular population center.As such, when looking at location, attention should be paid to census division, statistical area of classification, dissemination area or the individual tile level when measuring internet speeds and their progress to the commitment.  
+Incorporating population center type was useful for descriptive purposes as shown in the data. However, in terms of it being a statistical measure, it is not adequate as shown in the sparse estimates. Missing data relating to population center is accredited to the locations measured with that field missing not being related to a particular population center. As such, when looking at location, attention should be paid to census division, statistical area of classification, dissemination area or the individual tile level when measuring internet speeds and their progress to the commitment.  
 
 In terms of measurement of other variables, measurements on latency, connection type, number of devices used and tests preformed are good benchmarks for accessing quality of upload and download speeds. This was possible to determine through LASSO regression and the sparse estimates produced. 
 
@@ -1102,7 +1100,7 @@ rural_Download %>%
   geom_line()+
   geom_point()+
   facet_wrap(~Province)+
-  ggtitle("Proportion of Rural Populations Meeting the Commitment\n(Download Speed)")+
+  ggtitle("Proportion of Level 3 Divisons Meeting the Commitment\n(Download Speed)")+
   labs(y="Average Download Speed (mbps)")+
   scale_color_discrete(guide = guide_legend(reverse=TRUE))+
   theme(axis.ticks.x = element_blank(),
@@ -1134,7 +1132,7 @@ rural_Upload %>%
   geom_line()+
   geom_point()+
   facet_wrap(~Province)+
-  ggtitle("Proportion of Rural Populations Meeting the Commitment\n(Upload Speed)")+
+  ggtitle("Proportion of Level 3 Divisons Meeting the Commitment\n(Upload Speed)")+
   labs(y="Average Upload Speed (mbps)")+
   scale_color_discrete(guide = guide_legend(reverse=TRUE))+
   theme(axis.ticks.x = element_blank(),
