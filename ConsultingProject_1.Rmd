@@ -37,6 +37,7 @@ The following analysis aims to address the above in a practical and concise mann
 
 The data was made available by the [Statiscal Society of Canada](https://ssc.ca/en/case-study/towards-a-clear-understanding-rural-internet-what-statistical-measures-can-be-used-assess) with [Ookla](https://www.ookla.com) and [Statistics Canada](https://www.statcan.gc.ca/en/start). One of the first things to check regarding the data is to see if any missing data is present in the dataset. Figure 1 shows that most of the missing data is related to population center information. Namely data on population center id, type and class (PCUID, PCTYPE, PCLASS). For this analysis, the dataset is used "as is". Reason why imputation was not applied to this dataset is discussed at the end of the report. 
 
+
 ```{r message=FALSE, warning=FALSE, include=FALSE}
 library(mice)
 library(tidyverse)
@@ -62,12 +63,15 @@ naniar::gg_miss_upset(dt)
 ```
 
 
+
 # Analysis
 
 
 ## Current Realized And Forecasted Internet Speeds - A Statistical Analysis
 
 It is possible to describe the relationship between the current realized and forecasted internet speeds by use of a statistical model. For this analysis a mixed model structure is chosen with random effect being the individual tile measured. For choice of fixed effects in the model the use of directed acyclic graphs (DAGs) is employed for parameter selection. Figure 2 is the DAG which was used for model development. The fixed and random effects are thus listed in table 1 below:  
+
+
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE, fig.cap="DAG representing the relationship between the fixed effects and upload/download time."}
 library(ggdag)
