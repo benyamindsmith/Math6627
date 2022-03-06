@@ -40,6 +40,7 @@ The data was made available by [Kaggle](https://www.kaggle.com/). Figure 1 shows
 ```{r echo=FALSE, message=FALSE, warning=FALSE,fig.cap="There is little to no missing data in this dataset"}
 library(tidyverse)
 library(stringr)
+library(stringi)
 library(glmnet)
 library(lme4)
 library(jsonlite)
@@ -81,13 +82,17 @@ ratingsDf<-do.call(rbind,ratingsDf) %>% unnest()
 setwd("Proj2JsonFiles")
 for(i in 1:length(dt$related_talks)){
  
-  write(dt$related_talks[i] %>% str_remove_all("(?<=\\w)\\'(?=\\w)") %>%str_remove_all("’") %>%  str_remove_all("\\\\'") %>% str_replace("é","e"),paste0(i,'.json'))
+  write(dt$related_talks[i] %>%
+          str_remove_all("(?<=\\w)\\'(?=\\w)") %>%
+          str_remove_all("’") %>%  
+          str_remove_all("\\\\'") %>% 
+          str_replace("é","e") %>% 
+          stri_trans_general("latin-ascii"),paste0(i,'.json'))
 }
 
 relatedTalksJSON<- list()
 
 for(i in 1:length(dt$related_talks)){
-  print(i)
   tryCatch(
     { relatedTalksJSON[[i]]<- read_yaml(paste0(i,'.json')) },
     error = function(e){
@@ -96,7 +101,7 @@ for(i in 1:length(dt$related_talks)){
           relatedTalksJSON[[i]]<-read_yaml(text=dt$related_talks[i] %>% str_remove_all("\\'"))
         },
         error = function(f) {
-           relatedTalksJSON[[i]]<-read_yaml(text=dt$related_talks[i] %>% str_remove_all('\\"') %>% str_remove_all("\\\\'")) 
+           relatedTalksJSON[[i]]<-read_yaml(text=dt$related_talks[i] %>% str_remove_all('\\"') %>% str_remove_all("\\\\'") %>% stri_trans_general("latin-ascii")) 
         },
         finally=i
                )
@@ -152,15 +157,14 @@ fullyJoinedDf<- ratingsDf %>%
                 select(!c(description,tags,related_talks,ratings)) %>% 
                 mutate(tagValue=paste0("tag_",tagValue,collapse=""),
                        ratingTag=paste0("rating_",ratingTag,collapse=""),
-                       ratingCount=count,
                        film_date = lubridate::as_datetime(film_date),
-                       published_date=lubridate::as_datetime(published_date)) %>% 
-               select(!count)
+                       published_date=lubridate::as_datetime(published_date))
+              
 ```
 
 
 ```{r}
 fullyJoinedDf %>% 
   pivot_wider(names_from =ratingTag,
-              values_from = ratingCount)
+              values_from = count)
 ```
