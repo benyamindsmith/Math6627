@@ -1,0 +1,166 @@
+---
+title: "What Predicts The Popularity Of Ted Talks?"
+subtitle: "A Consulting Project for Math 6627 (2/3)"
+author: "Benjamin Smith"
+date: "`r format(Sys.time(), '%d %B %Y')`"
+output:
+  pdf_document: 
+    includes: 
+      in_header: "ConsultingProject1.tex"
+    toc: true
+    
+
+---
+\listoffigures
+\listoftables
+\newpage
+
+# Introduction
+
+
+(Quoted from the SSC website)
+
+[TED](https://www.ted.com) spreads ideas, primarily via short talks that can be accessed on the internet. As noted on its website, TED was initiated in 1984 as a conference where technology, entertainment, and design ideas were shared. At present, TED Talks cover topics ranging from science to business to global issues.
+
+
+The following analysis focuses on the use of inferential techniques to analyze the data. The questions addressed in this analysis are: 
+
+* What characteristics of TED Talks predict their popularity? 
+
+* What different ways could the popularity of TED Talks be measured? 
+
+* Do the characteristics that predict popularity change over time? 
+
+* Do the characteristics that predict popularity differ based on the theme of the TED Talks? 
+
+# The Data
+
+The data was made available by [Kaggle](https://www.kaggle.com/). Figure 1 shows that there very little data missing in this data set. As such there is no treatment applied to the data and it is used as is.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE,fig.cap="There is little to no missing data in this dataset"}
+library(tidyverse)
+library(stringr)
+library(glmnet)
+library(lme4)
+library(jsonlite)
+library(yaml)
+library(tidyr)
+dt<- readr::read_csv('./ted_main.csv')
+
+# No missing data
+naniar::vis_miss(dt)+
+  theme(axis.text.x = element_text(angle = 90))
+```
+
+
+The present structure of the data has nested .json fields and they needs to be unnested and expanded. 
+
+```{r}
+
+ratingsDf<- dt$ratings %>% 
+            lapply(function(x) read_yaml(text=x)) %>% 
+            lapply(function(x) do.call(rbind,x))
+
+# Using a for loop because vectorizing is hard. Don't make fun of me
+
+for(i in 1:length(ratingsDf)){
+  
+  ratingsDf[[i]]<- ratingsDf[[i]] %>% 
+                   as.data.frame.matrix() %>% 
+                   transmute(ratingID= id,
+                             ratingTag = name,
+                             count=count,
+                             url= rep(dt$url[i],length(ratingsDf[[i]][,1])))
+  
+}
+
+ratingsDf<-do.call(rbind,ratingsDf) %>% unnest()
+
+# Manually editing JSON Files to be read into R
+# The titles may differ as such
+setwd("Proj2JsonFiles")
+for(i in 1:length(dt$related_talks)){
+ 
+  write(dt$related_talks[i] %>% str_remove_all("(?<=\\w)\\'(?=\\w)") %>%str_remove_all("’") %>%  str_remove_all("\\\\'") %>% str_replace("é","e"),paste0(i,'.json'))
+}
+
+relatedTalksJSON<- list()
+
+for(i in 1:length(dt$related_talks)){
+  print(i)
+  tryCatch(
+    { relatedTalksJSON[[i]]<- read_yaml(paste0(i,'.json')) },
+    error = function(e){
+      tryCatch(
+        {
+          relatedTalksJSON[[i]]<-read_yaml(text=dt$related_talks[i] %>% str_remove_all("\\'"))
+        },
+        error = function(f) {
+           relatedTalksJSON[[i]]<-read_yaml(text=dt$related_talks[i] %>% str_remove_all('\\"') %>% str_remove_all("\\\\'")) 
+        },
+        finally=i
+               )
+      }
+      ,
+    finally=i
+  )
+}
+
+
+for(i in 1:length(relatedTalksJSON)){
+  
+    relatedTalksJSON[[i]]<- relatedTalksJSON[[i]] %>% lapply(function(y) as.data.frame(y) %>% mutate(url=dt$url[i]))
+      
+  
+}
+
+relatedTalksJSONDf<-list()
+for (i in 1:length(relatedTalksJSON)){
+  relatedTalksJSONDf[[i]]<-do.call(rbind,relatedTalksJSON[i])
+}
+
+relatedTalksJSONDf <- relatedTalksJSONDf %>% lapply(function(x) t(x))
+relatedTalksJSONDf<-do.call(rbind,do.call(rbind,relatedTalksJSONDf)) %>% 
+                    transmute(related_talks_id=id,
+                              related_talks_hero=hero,
+                              related_talks_speaker=speaker,
+                              related_talks_title=title,
+                              related_talks_duration=duration,
+                              related_talks_slug = slug,
+                              related_talks_view_count = viewed_count,
+                              url=url)
+
+
+tagsDf <- dt$tags %>% 
+  lapply(function(x) read_yaml(text=x) %>% as_tibble()) 
+
+for(i in 1:length(tagsDf)){
+  tagsDf[[i]]<- tagsDf[[i]] %>% 
+                   transmute(tagValue=value,
+                             url = rep(dt$url[i],length(tagsDf [[i]][,1])))
+}
+
+tagsDf<- do.call(rbind,tagsDf)
+```
+
+
+```{r}
+# Need to fix dates
+fullyJoinedDf<- ratingsDf %>%
+                left_join(tagsDf,by= "url") %>% 
+                left_join(dt, by="url") %>% 
+                select(!c(description,tags,related_talks,ratings)) %>% 
+                mutate(tagValue=paste0("tag_",tagValue,collapse=""),
+                       ratingTag=paste0("rating_",ratingTag,collapse=""),
+                       ratingCount=count,
+                       film_date = lubridate::as_datetime(film_date),
+                       published_date=lubridate::as_datetime(published_date)) %>% 
+               select(!count)
+```
+
+
+```{r}
+fullyJoinedDf %>% 
+  pivot_wider(names_from =ratingTag,
+              values_from = ratingCount)
+```

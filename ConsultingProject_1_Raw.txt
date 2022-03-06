@@ -1,0 +1,497 @@
+
+
+# Code Appendix
+
+## SAS Code
+
+``` sas
+/*Update File Path Accordingly*/
+FILENAME REFFILE '.../ookla-canada-speed-tiles.csv';
+PROC IMPORT DATAFILE=REFFILE
+	DBMS=CSV
+	OUT=DT;
+	GETNAMES=YES;
+RUN;
+
+PROC CONTENTS DATA=DT; 
+RUN;
+
+/*Download Time*/
+PROC MIXED DATA=DT METHOD=REML COVTEST;
+CLASS PRNAME PCCLASS quarter year conn_type quadkey;
+MODEL avg_d_kbps= devices conn_type tests year quarter quarter*year PRNAME PCCLASS PRNAME*PCCLASS;
+RANDOM quadkey/s;
+RUN;
+
+
+/*Upload Time*/
+PROC MIXED DATA=DT METHOD=REML COVTEST;
+CLASS PRNAME quarter year conn_type quadkey;
+MODEL avg_u_kbps= devices conn_type tests year quarter quarter*year PRNAME PCCLASS PRNAME*PCCLASS;
+RANDOM quadkey/s;
+RUN;
+```
+
+\newpage
+
+## R Code
+
+```{r eval=FALSE, tidy=TRUE, tidy.opts=list(width.cutoff=60)}
+library(mice)
+library(tidyverse)
+library(ggthemes)
+library(ggspatial)
+library(plotly)
+library(rnaturalearth)
+library(sf)
+library(scales)
+library(reshape2)
+library(formatR)
+
+#dt<- readr::read_csv("./ConsultingData/ookla-canada-speed-tiles.csv")
+# Accomidating for mtor
+setwd("/home/ben2908")
+dt<- readr::read_csv("./ookla-canada-speed-tiles.csv")
+
+# Visualizing missing data
+naniar::gg_miss_upset(dt)
+
+# Constructing DAG
+
+library(ggdag)
+
+dagify(download_time~latency,
+       download_time ~ conn_type,
+       download_time ~tests,
+       download_time~year,
+       download_time~quarter,
+       quarter~year,
+       latency~ conn_type,
+       latency~no_of_devices,
+       year~quarter,
+       download_time~pcclass,
+       download_time~prname,
+       pcclass~prname,
+       labels=c("download_time"="Download/Upload Speed",
+                "latency" = "Latency",
+                "conn_type"="Connection Type\n(Fixed,Mobile)",
+                "no_of_devices"="No. of Devices",
+                "tests"="No. of tests",
+                "year"="Year\n(2019,2020,2021)",
+                "quarter"="Quarter\n(Q1,Q2,Q3,Q4)",
+                "prname"="Province",
+                "pcclass"="Pop. Center\nClass")) %>% 
+  tidy_dagitty() %>% 
+  # prname (8,2) pcclass(8.5,1.5)
+  mutate(xend=c(10.5,9,10.5,9,10.5,10.5,8.5,10.5,9.5,10.5,10.5,10,NA),
+         yend=c(0,0,0,0,0,0,-2,0,-1.7,0,0,-2,NA),
+         x=ifelse(name=="download_time",10.5,
+                  ifelse(name=="latency",9,
+                         ifelse(name=="conn_type",9.5,
+                                       ifelse(name=="tests",10,
+                                              ifelse(name=="year",9.5,
+                                                     ifelse(name=="quarter",10,
+                                                        ifelse(name=="no_of_devices",8,
+                                                               ifelse(name=="prname",8,
+                                                                      8.5)))))))),
+         y=ifelse(name=="download_time",0,
+                  ifelse(name=="latency",0,
+                         ifelse(name=="conn_type",1,
+                                       ifelse(name=="tests",1,
+                                              ifelse(name=="year",-1.7,
+                                                     ifelse(name=="quarter",-2,
+                                                             ifelse(name=="no_of_devices",0,
+                                                               ifelse(name=="prname",-1.5,
+                                                                      -2)))))))),
+         effectType=ifelse(name %in% c("download_time",
+                "latency",
+                "conn_type",
+                "no_of_devices",
+                "tests",
+                "year",
+                "quarter"),"Fixed","Random")) %>% 
+  ggdag(text=FALSE,use_labels = "label")+
+  ggtitle("Relationship between Fixed Effects and Download/Upload Time")+
+  theme_dag()
+
+# Table 1  
+tibble(`Fixed Effects` = c("No. of devices",
+                           "Connection Type",
+                           "No. of Tests",
+                           "Year",
+                           "Quarter",
+                           "Province",
+                           "Population Center Class",
+                           "Year*Quarter",
+                           "Province*Population Center Class"),
+       `Random Effect` = c("quadkey", rep("",8))) %>% knitr::kable(caption = "Fixed and Random Effects used to describe Upload/Download Speed")
+
+
+# Visuals 
+
+# Need to filter based on PCCLASS
+dt %>% 
+  filter(!is.na(PCCLASS)) %>% 
+  group_by(PCCLASS,PRNAME,year,quarter) %>% 
+  summarize(average_d_time = mean(avg_d_kbps/1000)) %>% 
+  mutate(year_quarter=paste(year,quarter),
+         Province= ifelse(grepl("\\/",PRNAME),PRNAME %>% str_extract('.*(?= \\/)'),PRNAME),
+         popcenter_class = ifelse(PCCLASS==2, "Small (1000-29,999)",ifelse(PCCLASS==3, "Medium (30,000-99,999)",ifelse(PCCLASS==4,"Large (>100,000)","OTHER")))) %>% 
+  ggplot(mapping=aes(x= year_quarter,y=average_d_time,color= popcenter_class,group= popcenter_class))+
+  geom_point()+
+  geom_line()+
+  facet_wrap(~Province)+
+  ggtitle("Average Download Speed 2019-2021")+
+  labs(y="Average Download Speed (mbps)")+
+  scale_color_discrete(guide = guide_legend(reverse=TRUE))+
+  theme(axis.ticks.x = element_blank(),
+        axis.text.x = element_blank(),
+        axis.title.x = element_blank(),
+        legend.title=element_blank(),
+        legend.position = "bottom")
+        
+# Need to filter based on PCCLASS
+dt %>% 
+  filter(!is.na(PCCLASS)) %>% 
+  group_by(PCCLASS,PRNAME,year,quarter) %>% 
+  summarize(average_u_time = mean(avg_u_kbps/1000)) %>% 
+  mutate(year_quarter=paste(year,quarter),
+         Province= ifelse(grepl("\\/",PRNAME),PRNAME %>% str_extract('.*(?= \\/)'),PRNAME),
+         popcenter_class = ifelse(PCCLASS==2, "Small (1000-29,999)",ifelse(PCCLASS==3, "Medium (30,000-99,999)",ifelse(PCCLASS==4,"Large (>100,000)","OTHER")))) %>% 
+  ggplot(mapping=aes(x= year_quarter,y=average_u_time,color= popcenter_class,group= popcenter_class))+
+  geom_point()+
+  geom_line()+
+  facet_wrap(~Province)+
+  ggtitle("Average Upload Speed 2019-2021")+
+  labs(y="Average Upload Speed (mbps)")+
+  scale_color_discrete(guide = guide_legend(reverse=TRUE))+
+  theme(axis.ticks.x = element_blank(),
+        axis.text.x = element_blank(),
+        axis.title = element_blank(),
+        legend.title=element_blank(),
+        legend.position = "bottom")
+
+# Small Provinces
+
+smallProvs_Download<- dt %>%
+              mutate(year_quarter=paste(year,quarter),
+                     Province= ifelse(grepl("\\/",PRNAME),PRNAME %>% str_extract('.*(?= \\/)'),PRNAME),
+                      popcenter_class = ifelse(PCCLASS==2, 
+                                               "Small (1000-29,999)",
+                                               ifelse(PCCLASS==3, 
+                                                      "Medium (30,000-99,999)",
+                                                      ifelse(PCCLASS==4,"Large (>100,000)",
+                                                             "OTHER"))),
+                      d_status=ifelse((avg_d_kbps/1000)<50,"Below Commitment","Meeting Commitment"),
+                      u_status=ifelse((avg_u_kbps/1000)<10,"Below Commitment","Meeting Commitment")) %>% 
+                filter(!is.na(PCCLASS),popcenter_class=="Small (1000-29,999)") %>% 
+                group_by(Province, year_quarter) %>% 
+                count(d_status) 
+
+
+smallProvs_Download<- do.call(rbind,
+                     by(smallProvs_Download,smallProvs_Download["Province"],tibble) %>% 
+                     lapply(function(x) do.call(rbind,by(x,x["year_quarter"],tibble) %>% 
+                                                  lapply(function(y) y %>% mutate(prop = y$n/sum(y$n)))))
+)
+
+smallProvs_Download %>% 
+  ggplot(mapping=aes(x=year_quarter,y=prop,color=d_status, group = d_status))+
+  #geom_bar(stat="identity")+
+  geom_line()+
+  geom_point()+
+  facet_wrap(~Province)+
+  ggtitle("Proportion of Small Population Centers Meeting the Commitment\n(Download Speed)")+
+  labs(y="Average Download Speed (mbps)")+
+  scale_color_discrete(guide = guide_legend(reverse=TRUE))+
+  theme(axis.ticks.x = element_blank(),
+        axis.text.x = element_blank(),
+        axis.title = element_blank(),
+        legend.title=element_blank(),
+        legend.position = "bottom")
+
+
+smallProvs_Upload<- dt %>%
+              mutate(year_quarter=paste(year,quarter),
+                     Province= ifelse(grepl("\\/",PRNAME),PRNAME %>% str_extract('.*(?= \\/)'),PRNAME),
+                      popcenter_class = ifelse(PCCLASS==2, 
+                                               "Small (1000-29,999)",
+                                               ifelse(PCCLASS==3, 
+                                                      "Medium (30,000-99,999)",
+                                                      ifelse(PCCLASS==4,"Large (>100,000)",
+                                                             "OTHER"))),
+                      d_status=ifelse((avg_d_kbps/1000)<50,"Below Commitment","Meeting Commitment"),
+                      u_status=ifelse((avg_u_kbps/1000)<10,"Below Commitment","Meeting Commitment")) %>% 
+                filter(!is.na(PCCLASS),popcenter_class=="Small (1000-29,999)") %>% 
+                group_by(Province, year_quarter) %>% 
+                count(u_status) 
+
+
+smallProvs_Upload<- do.call(rbind,
+                     by(smallProvs_Upload,smallProvs_Upload["Province"],tibble) %>% 
+                     lapply(function(x) do.call(rbind,by(x,x["year_quarter"],tibble) %>% 
+                                                  lapply(function(y) y %>% mutate(prop = y$n/sum(y$n)))))
+)
+
+smallProvs_Upload %>% 
+  ggplot(mapping=aes(x=year_quarter,y=prop,color=u_status, group = u_status))+
+  #geom_bar(stat="identity")+
+  geom_line()+
+  geom_point()+
+  facet_wrap(~Province)+
+  ggtitle("Proportion of Small Population Centers Meeting the Commitment\n(Upload Speed)")+
+  labs(y="Average Upload Speed (mbps)")+
+  scale_color_discrete(guide = guide_legend(reverse=TRUE))+
+  theme(axis.ticks.x = element_blank(),
+        axis.text.x = element_blank(),
+        axis.title = element_blank(),
+        legend.title=element_blank(),
+        legend.position = "bottom")
+
+# Medium 
+medProvs_Download<- dt %>%
+              mutate(year_quarter=paste(year,quarter),
+                     Province= ifelse(grepl("\\/",PRNAME),PRNAME %>% str_extract('.*(?= \\/)'),PRNAME),
+                      popcenter_class = ifelse(PCCLASS==2, 
+                                               "Small (1000-29,999)",
+                                               ifelse(PCCLASS==3, 
+                                                      "Medium (30,000-99,999)",
+                                                      ifelse(PCCLASS==4,"Large (>100,000)",
+                                                             "OTHER"))),
+                      d_status=ifelse((avg_d_kbps/1000)<50,"Below Commitment","Meeting Commitment"),
+                      u_status=ifelse((avg_u_kbps/1000)<10,"Below Commitment","Meeting Commitment")) %>% 
+                filter(!is.na(PCCLASS),popcenter_class=="Medium (30,000-99,999)") %>% 
+                group_by(Province, year_quarter) %>% 
+                count(d_status) 
+
+
+medProvs_Download<- do.call(rbind,
+                     by(medProvs_Download,medProvs_Download["Province"],tibble) %>% 
+                     lapply(function(x) do.call(rbind,by(x,x["year_quarter"],tibble) %>% 
+                                                  lapply(function(y) y %>% mutate(prop = y$n/sum(y$n)))))
+)
+
+medProvs_Download %>% 
+  ggplot(mapping=aes(x=year_quarter,y=prop,color=d_status, group = d_status))+
+  #geom_bar(stat="identity")+
+  geom_line()+
+  geom_point()+
+  facet_wrap(~Province)+
+  ggtitle("Proportion of Medium Population Centers Meeting the Commitment\n(Download Speed)")+
+  labs(y="Average Upload Speed (mbps)")+
+  scale_color_discrete(guide = guide_legend(reverse=TRUE))+
+  theme(axis.ticks.x = element_blank(),
+        axis.text.x = element_blank(),
+        axis.title = element_blank(),
+        legend.title=element_blank(),
+        legend.position = "bottom")
+        
+# Medium 
+medProvs_Upload<- dt %>%
+              mutate(year_quarter=paste(year,quarter),
+                     Province= ifelse(grepl("\\/",PRNAME),PRNAME %>% str_extract('.*(?= \\/)'),PRNAME),
+                      popcenter_class = ifelse(PCCLASS==2, 
+                                               "Small (1000-29,999)",
+                                               ifelse(PCCLASS==3, 
+                                                      "Medium (30,000-99,999)",
+                                                      ifelse(PCCLASS==4,"Large (>100,000)",
+                                                             "OTHER"))),
+                      d_status=ifelse((avg_d_kbps/1000)<50,"Below Commitment","Meeting Commitment"),
+                      u_status=ifelse((avg_u_kbps/1000)<10,"Below Commitment","Meeting Commitment")) %>% 
+                filter(!is.na(PCCLASS),popcenter_class=="Medium (30,000-99,999)") %>% 
+                group_by(Province, year_quarter) %>% 
+                count(u_status) 
+
+
+medProvs_Upload<- do.call(rbind,
+                     by(medProvs_Upload,medProvs_Upload["Province"],tibble) %>% 
+                     lapply(function(x) do.call(rbind,by(x,x["year_quarter"],tibble) %>% 
+                                                  lapply(function(y) y %>% mutate(prop = y$n/sum(y$n)))))
+)
+
+medProvs_Upload %>% 
+  ggplot(mapping=aes(x=year_quarter,y=prop,color=u_status, group = u_status))+
+  #geom_bar(stat="identity")+
+  geom_line()+
+  geom_point()+
+  facet_wrap(~Province)+
+  ggtitle("Proportion of Medium Population Centers Meeting the Commitment\n(Upload Speed)")+
+  labs(y="Average Upload Speed (mbps)")+
+  scale_color_discrete(guide = guide_legend(reverse=TRUE))+
+  theme(axis.ticks.x = element_blank(),
+        axis.text.x = element_blank(),
+        axis.title = element_blank(),
+        legend.title=element_blank(),
+        legend.position = "bottom")
+
+
+# Large 
+largeProvs_Download<- dt %>%
+              mutate(year_quarter=paste(year,quarter),
+                     Province= ifelse(grepl("\\/",PRNAME),PRNAME %>% str_extract('.*(?= \\/)'),PRNAME),
+                      popcenter_class = ifelse(PCCLASS==2, 
+                                               "Small (1000-29,999)",
+                                               ifelse(PCCLASS==3, 
+                                                      "Medium (30,000-99,999)",
+                                                      ifelse(PCCLASS==4,"Large (>100,000)",
+                                                             "OTHER"))),
+                      d_status=ifelse((avg_d_kbps/1000)<50,"Below Commitment","Meeting Commitment"),
+                      u_status=ifelse((avg_u_kbps/1000)<10,"Below Commitment","Meeting Commitment")) %>% 
+                filter(!is.na(PCCLASS),popcenter_class=="Large (>100,000)") %>% 
+                group_by(Province, year_quarter) %>% 
+                count(d_status) 
+
+
+largeProvs_Download<- do.call(rbind,
+                     by(largeProvs_Download,largeProvs_Download["Province"],tibble) %>% 
+                     lapply(function(x) do.call(rbind,by(x,x["year_quarter"],tibble) %>% 
+                                                  lapply(function(y) y %>% mutate(prop = y$n/sum(y$n)))))
+)
+
+largeProvs_Download %>% 
+ ggplot(mapping=aes(x=year_quarter,y=prop,color=d_status, group = d_status))+
+  #geom_bar(stat="identity")+
+  geom_line()+
+  geom_point()+
+  facet_wrap(~Province)+
+  ggtitle("Proportion of Large Population Centers Meeting the Commitment\n(Download Speed)")+
+  labs(y="Average Download Speed (mbps)")+
+  scale_color_discrete(guide = guide_legend(reverse=TRUE))+
+  theme(axis.ticks.x = element_blank(),
+        axis.text.x = element_blank(),
+        axis.title = element_blank(),
+        legend.title=element_blank(),
+        legend.position = "bottom")
+        
+
+# Large 
+largeProvs_Upload<- dt %>%
+              mutate(year_quarter=paste(year,quarter),
+                     Province= ifelse(grepl("\\/",PRNAME),PRNAME %>% str_extract('.*(?= \\/)'),PRNAME),
+                      popcenter_class = ifelse(PCCLASS==2, 
+                                               "Small (1000-29,999)",
+                                               ifelse(PCCLASS==3, 
+                                                      "Medium (30,000-99,999)",
+                                                      ifelse(PCCLASS==4,"Large (>100,000)",
+                                                             "OTHER"))),
+                      d_status=ifelse((avg_d_kbps/1000)<50,"Below Commitment","Meeting Commitment"),
+                      u_status=ifelse((avg_u_kbps/1000)<10,"Below Commitment","Meeting Commitment")) %>% 
+                filter(!is.na(PCCLASS),popcenter_class=="Large (>100,000)") %>% 
+                group_by(Province, year_quarter) %>% 
+                count(u_status) 
+
+
+largeProvs_Upload<- do.call(rbind,
+                     by(largeProvs_Upload,largeProvs_Upload["Province"],tibble) %>% 
+                     lapply(function(x) do.call(rbind,by(x,x["year_quarter"],tibble) %>% 
+                                                  lapply(function(y) y %>% mutate(prop = y$n/sum(y$n)))))
+)
+
+# LASSO REGRESSION
+
+library(glmnet)
+
+y_download <- dt$avg_d_kbps
+y_upload <- dt$avg_u_kbps
+X <- data.matrix(dt[,-which(names(dt) %in% c("avg_d_kbps","avg_u_kbps","geometry","year","quarter","PRUID","CDUID","PCUID"))])
+
+#perform k-fold cross-validation to find optimal lambda value
+cv_model_download <- cv.glmnet(X, y_download, alpha = 1)
+cv_model_upload <-cv.glmnet(X, y_upload, alpha = 1)
+
+#find optimal lambda value that minimizes test MSE
+best_lambda_download <- cv_model_download$lambda.min
+best_lambda_upload <- cv_model_upload$lambda.min
+
+#produce plot of test MSE by lambda value
+plot(cv_model_download, main =expression("MSE vs "*lambda[d]*" (Download Time)"))
+
+plot(cv_model_upload, main =expression("MSE vs "*lambda[u]*" (Upload Time)"))
+
+
+best_model_download <- glmnet(X, y_download, alpha = 1, lambda = best_lambda_download)
+best_model_upload <- glmnet(X, y_upload, alpha = 1, lambda = best_lambda_upload)
+
+as.matrix(coef(best_model_download),rownames) %>% knitr::kable(caption="Sparse Estimates for Download Speed Predicton")
+
+
+as.matrix(coef(best_model_upload),rownames) %>% knitr::kable(caption="Sparse Estimates for Upload Speed Predicton")
+
+# A note about missing data
+
+temp<-dt %>% filter(is.na(PCNAME))
+
+temp %>% 
+  transmute("Census Division"=CDNAME,"Province"=PRNAME) %>% 
+  distinct() %>% 
+  knitr::kable(caption = "Census divisions with missing data")
+  
+rural_Download<- dt %>%
+              mutate(year_quarter=paste(year,quarter),
+                     Province= ifelse(grepl("\\/",PRNAME),PRNAME %>% str_extract('.*(?= \\/)'),PRNAME),
+                      popcenter_class = ifelse(PCCLASS==2, 
+                                               "Small (1000-29,999)",
+                                               ifelse(PCCLASS==3, 
+                                                      "Medium (30,000-99,999)",
+                                                      ifelse(PCCLASS==4,"Large (>100,000)",
+                                                             "OTHER"))),
+                      d_status=ifelse((avg_d_kbps/1000)<50,"Below Commitment","Meeting Commitment"),
+                      u_status=ifelse((avg_u_kbps/1000)<10,"Below Commitment","Meeting Commitment")) %>% 
+                filter(is.na(PCCLASS)) %>% 
+                group_by(Province, year_quarter) %>% 
+                count(d_status) 
+
+
+rural_Download<- do.call(rbind,
+                     by(rural_Download,rural_Download["Province"],tibble) %>% 
+                     lapply(function(x) do.call(rbind,by(x,x["year_quarter"],tibble) %>% 
+                                                  lapply(function(y) y %>% mutate(prop = y$n/sum(y$n)))))
+)
+
+rural_Download %>% 
+ ggplot(mapping=aes(x=year_quarter,y=prop,color=d_status, group = d_status))+
+  #geom_bar(stat="identity")+
+  geom_line()+
+  geom_point()+
+  facet_wrap(~Province)+
+  ggtitle("Proportion of Level 3 Divisons Meeting the Commitment\n(Download Speed)")+
+  labs(y="Average Download Speed (mbps)")+
+  scale_color_discrete(guide = guide_legend(reverse=TRUE))+
+  theme(axis.ticks.x = element_blank(),
+        axis.text.x = element_blank(),
+        axis.title = element_blank(),
+        legend.title=element_blank(),
+        legend.position = "bottom")
+
+
+ruralProvs_Upload<- dt %>%
+              mutate(year_quarter=paste(year,quarter),
+                     Province= ifelse(grepl("\\/",PRNAME),PRNAME %>% str_extract('.*(?= \\/)'),PRNAME),
+                      d_status=ifelse((avg_d_kbps/1000)<50,"Below Commitment","Meeting Commitment"),
+                      u_status=ifelse((avg_u_kbps/1000)<10,"Below Commitment","Meeting Commitment")) %>% 
+                filter(!is.na(PCCLASS)) %>% 
+                group_by(Province, year_quarter) %>% 
+                count(u_status) 
+
+
+rural_Upload<- do.call(rbind,
+                     by(ruralProvs_Upload,ruralProvs_Upload["Province"],tibble) %>% 
+                     lapply(function(x) do.call(rbind,by(x,x["year_quarter"],tibble) %>% 
+                                                  lapply(function(y) y %>% mutate(prop = y$n/sum(y$n)))))
+)
+
+rural_Upload %>% 
+  ggplot(mapping=aes(x=year_quarter,y=prop,color=u_status, group = u_status))+
+  #geom_bar(stat="identity")+
+  geom_line()+
+  geom_point()+
+  facet_wrap(~Province)+
+  ggtitle("Proportion of Level 3 Divisons Meeting the Commitment\n(Upload Speed)")+
+  labs(y="Average Upload Speed (mbps)")+
+  scale_color_discrete(guide = guide_legend(reverse=TRUE))+
+  theme(axis.ticks.x = element_blank(),
+        axis.text.x = element_blank(),
+        axis.title = element_blank(),
+        legend.title=element_blank(),
+        legend.position = "bottom")  
+```
