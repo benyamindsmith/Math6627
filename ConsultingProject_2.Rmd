@@ -297,9 +297,37 @@ as.matrix(coef(best_model_comments),rownames) %>%
 
 ```{r}
 fullyJoinedDf %>% 
+  mutate(published_year = lubridate::year(published_date)) %>% 
+  group_by(published_year,tagValue) %>% 
+  summarize(total_views=sum(views)) %>% 
+  slice_max(order_by = total_views, n = 5) %>% 
   ggplot()+
-  geom_point(mapping=aes(x=published_date,y=count,color=tagValue))+
-  facet_wrap(~ratingTag)
+  geom_point(mapping=aes(x=published_year,y=total_views,color=tagValue))+
+  facet_wrap(~tagValue)+
+  ggtitle("Characteristics Predicting Popularity over time (views)")+
+  theme(legend.position = "none")
 ```
 
+```{r}
+fullyJoinedDf %>% 
+  mutate(published_year = lubridate::year(published_date)) %>% 
+  group_by(published_year,tagValue) %>% 
+  summarize(total_comments=sum(comments)) %>% 
+  slice_max(order_by = total_comments, n = 5) %>% 
+  ggplot()+
+  geom_point(mapping=aes(x=published_year,y=total_comments,color=tagValue))+
+  facet_wrap(~tagValue)+
+  ggtitle("Characteristics Predicting Popularity over time (comments)")+
+  theme(legend.position = "none")
+```
 
+## Characteristics that predict popularity differ based on the theme of the TED Talks
+
+MIXED MODEL IN SAS
+
+
+# Conclusion
+
+# References
+
+# Code Appendix
