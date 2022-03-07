@@ -156,8 +156,6 @@ fullyJoinedDf<- ratingsDf %>%
                 left_join(dt, by="url") %>% 
                 select(!c(description,tags,related_talks,ratings)) %>% 
                 mutate(
-                  #tagValue=paste0("tag_",tagValue,collapse=""),
-                  #ratingTag=paste0("rating_",ratingTag,collapse=""),
                        film_date = lubridate::as_datetime(film_date),
                        published_date=lubridate::as_datetime(published_date))
               
@@ -165,6 +163,7 @@ fullyJoinedDf<- ratingsDf %>%
 
 
 ```{r}
+# Working dataframe
 dtt<-fullyJoinedDf %>%
       select(!ratingID) %>% 
       pivot_wider(names_from = ratingTag, 
@@ -172,5 +171,71 @@ dtt<-fullyJoinedDf %>%
                   names_prefix = "rating_") %>% 
       pivot_wider(names_from=tagValue,
                   values_from=tagValue,
-                  names_prefix = "tag_")
+                  names_prefix = "tag_") %>% 
+      mutate(across(names(dtt)[grepl("tag_",names(dtt))],~ ifelse(!is.na(.x),1,0)))
 ```
+
+
+# Analysis
+
+## Characteristics of TED Talks predict popularity
+
+This can be done by using LASSO regression
+
+```{r}
+y <- dtt$views
+X <- data.matrix(dtt[,-which(names(dtt) %in% c("views"))])
+```
+
+```{r}
+#perform k-fold cross-validation to find optimal lambda value
+cv_model_views <- cv.glmnet(X, y, alpha = 1)
+#find optimal lambda value that minimizes test MSE
+best_lambda<- cv_model_views$lambda.min
+
+#produce plot of test MSE by lambda value
+plot(cv_model_views, main =expression("MSE vs "*lambda[views]*""))
+```
+
+```{r}
+best_model_views <- glmnet(X, y, alpha = 1, lambda = best_lambda)
+
+as.matrix(coef(best_model_views),rownames) %>% 
+  as.data.frame.matrix() %>% 
+  filter(s0!=0) %>% 
+  knitr::kable(caption="Sparse Estimates for Ted Talk Popularity (in terms of Views)")
+```
+
+## Different ways could the popularity of TED Talks be measured
+
+From simple inspection of the data the two possible ways that the popularity of a Ted Talk can be measured would be in terms of number of views and rating. Since we explored views in the previous section, in this section we will focus on rating. From the data set it was determined that there are 14 unique rating tags for each TED talk. 
+
+```{r}
+tibble(`Rating Tag` = unique(fullyJoinedDf$ratingTag),
+       Classification = c("Good","Good","Good",
+                          "Good","Bad","Bad",
+                          "Good","Good","Bad",
+                          "Good","Good","Ambiguos",
+                          "Bad","Bad")) %>%
+  knitr::kable(caption="Unique Rating Tags accross all Ted Talks")
+```
+
+```{r}
+dtt %>% 
+  rowwise() %>% 
+  mutate(`Good/Bad Ratio` = sum(rating_Funny,
+                                rating_Beautiful,
+                                rating_Ingenious,
+                                rating_Courageous,
+                                rating_Informative,
+                                rating_Fascinating,
+                                rating_Persuasive,
+                                `rating_Jaw-dropping`)/sum(rating_Longwinded,
+                                                           rating_Confusing,
+                                                           rating_Unconvincing,
+                                                           rating_Obnoxious,
+                                                           rating_Inspiring))
+```
+
+
+
