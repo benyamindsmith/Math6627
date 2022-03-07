@@ -155,8 +155,9 @@ fullyJoinedDf<- ratingsDf %>%
                 left_join(tagsDf,by= "url") %>% 
                 left_join(dt, by="url") %>% 
                 select(!c(description,tags,related_talks,ratings)) %>% 
-                mutate(tagValue=paste0("tag_",tagValue,collapse=""),
-                       ratingTag=paste0("rating_",ratingTag,collapse=""),
+                mutate(
+                  #tagValue=paste0("tag_",tagValue,collapse=""),
+                  #ratingTag=paste0("rating_",ratingTag,collapse=""),
                        film_date = lubridate::as_datetime(film_date),
                        published_date=lubridate::as_datetime(published_date))
               
@@ -164,7 +165,12 @@ fullyJoinedDf<- ratingsDf %>%
 
 
 ```{r}
-fullyJoinedDf %>% 
-  pivot_wider(names_from =ratingTag,
-              values_from = count)
+dtt<-fullyJoinedDf %>%
+      select(!ratingID) %>% 
+      pivot_wider(names_from = ratingTag, 
+                  values_from = count,
+                  names_prefix = "rating_") %>% 
+      pivot_wider(names_from=tagValue,
+                  values_from=tagValue,
+                  names_prefix = "tag_")
 ```
