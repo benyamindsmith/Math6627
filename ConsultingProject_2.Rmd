@@ -31,7 +31,7 @@ The following analysis focuses on the use of inferential techniques to analyze t
 
 * Do the characteristics that predict popularity change over time? 
 
-* Do the characteristics that predict popularity differ based on the theme of the TED Talks? 
+* Do the characteristics that predict popularity differ based on the theme of the TED Talks? (Mixed Model!!)
 
 # The Data
 
@@ -208,7 +208,11 @@ as.matrix(coef(best_model_views),rownames) %>%
 
 ## Different ways could the popularity of TED Talks be measured
 
-From simple inspection of the data the two possible ways that the popularity of a Ted Talk can be measured would be in terms of number of views and rating. Since we explored views in the previous section, in this section we will focus on rating. From the data set it was determined that there are 14 unique rating tags for each TED talk. 
+From simple inspection of the data the two possible ways that the popularity of a Ted Talk can be measured would be in terms of number of views and rating. Since we explored views in the previous section, in this section we will focus on rating and comments. 
+
+### Rating 
+
+From the data set it was determined that there are 14 unique rating tags for each TED talk. 
 
 ```{r}
 tibble(`Rating Tag` = unique(fullyJoinedDf$ratingTag),
@@ -221,7 +225,8 @@ tibble(`Rating Tag` = unique(fullyJoinedDf$ratingTag),
 ```
 
 ```{r}
-dtt %>% 
+# Including Good/Bad Ratio
+dtt<-dtt %>% 
   rowwise() %>% 
   mutate(`Good/Bad Ratio` = sum(rating_Funny,
                                 rating_Beautiful,
@@ -237,5 +242,64 @@ dtt %>%
                                                            rating_Inspiring))
 ```
 
+
+```{r message=TRUE, warning=FALSE}
+dtt %>%
+group_by(`Good/Bad Ratio`) %>% 
+arrange(-desc(`Good/Bad Ratio`),.by_group = T) %>%
+select(name,`Good/Bad Ratio`,views,comments,published_date) %>% 
+filter(`Good/Bad Ratio` < 0.6083570) %>% 
+knitr::kable(caption="Top 10 Worst Ted Talks")
+```
+
+```{r}
+dtt %>%
+group_by(`Good/Bad Ratio`) %>% 
+arrange(desc(`Good/Bad Ratio`)) %>%
+select(name,`Good/Bad Ratio`,views,comments,published_date) %>% 
+filter(`Good/Bad Ratio` >= 18.714285) %>% 
+knitr::kable(caption="Top 10 Best Ted Talks")  
+```
+
+### Comments
+
+If we want to look at it in terms of engagement, we can view it in terms of comments
+
+
+
+```{r}
+# Comments
+
+y <- dtt$comments
+X <- data.matrix(dtt[,-which(names(dtt) %in% c("comments"))])
+```
+
+```{r}
+#perform k-fold cross-validation to find optimal lambda value
+cv_model_comments <- cv.glmnet(X, y, alpha = 1)
+#find optimal lambda value that minimizes test MSE
+best_lambda<- cv_model_comments$lambda.min
+
+#produce plot of test MSE by lambda value
+plot(cv_model_comments, main =expression("MSE vs "*lambda[comments]*""))
+```
+
+```{r}
+best_model_comments <- glmnet(X, y, alpha = 1, lambda = best_lambda)
+
+as.matrix(coef(best_model_comments),rownames) %>% 
+  as.data.frame.matrix() %>% 
+  filter(s0!=0) %>% 
+  knitr::kable(caption="Sparse Estimates for Ted Talk Popularity (in terms of comments)")
+```
+
+## Characteristics predicting popularity over time
+
+```{r}
+fullyJoinedDf %>% 
+  ggplot()+
+  geom_point(mapping=aes(x=published_date,y=count,color=tagValue))+
+  facet_wrap(~ratingTag)
+```
 
 
