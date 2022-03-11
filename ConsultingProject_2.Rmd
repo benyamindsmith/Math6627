@@ -1,5 +1,5 @@
 ---
-title: "What Predicts The Popularity Of Ted Talks?"
+title: "What Predicts The Popularity Of Ted Talks? An Analysis (and Adventure in Data Engineering)"
 subtitle: "A Consulting Project for Math 6627 (2/3)"
 author: "Benjamin Smith"
 date: "`r format(Sys.time(), '%d %B %Y')`"
@@ -20,30 +20,31 @@ output:
 
 (Quoted from the SSC website)
 
-[TED](https://www.ted.com) spreads ideas, primarily via short talks that can be accessed on the internet. As noted on its website, TED was initiated in 1984 as a conference where technology, entertainment, and design ideas were shared. At present, TED Talks cover topics ranging from science to business to global issues.
+[TED](https://www.ted.com) spreads ideas, primarily via short talks that can be accessed on the internet. As noted on its website, TED was initiated in 1984 as a conference where technology, entertainment, and design ideas were shared. As of present present, TED Talks cover topics ranging from science to business to global issues.
 
 
 The following analysis focuses on the use of inferential techniques to analyze the data. The questions addressed in this analysis are: 
 
-* What characteristics of TED Talks predict their popularity? 
+1. What characteristics of TED Talks predict their popularity? 
 
-* What different ways could the popularity of TED Talks be measured? 
+2. What different ways could the popularity of TED Talks be measured? 
 
-* Do the characteristics that predict popularity change over time? 
+3. Do the characteristics that predict popularity change over time? 
 
-* Do the characteristics that predict popularity differ based on the theme of the TED Talks? (Mixed Model!!)
+4. Do the characteristics that predict popularity differ based on the theme of the TED Talks? 
 
 # The Data
 
-The data was made available by [Kaggle](https://www.kaggle.com/). Figure 1 shows that there very little data missing in this data set. As such there is no treatment applied to the data and it is used as is.
+The data was made available by [Kaggle](https://www.kaggle.com/). Using by use of the `naniar` R package, Figure 1 shows that there very little data missing in this data set. As such there is no treatment applied to the data and it is used as is.
 
-```{r echo=FALSE, message=FALSE, warning=FALSE,fig.cap="There is little to no missing data in this dataset"}
+```{r echo=FALSE, fig.cap="There is little to no missing data in this dataset", message=FALSE, warning=FALSE}
 library(tidyverse)
 library(stringr)
 library(stringi)
 library(glmnet)
 library(lme4)
 library(jsonlite)
+library(nlme)
 library(yaml)
 library(tidyr)
 dt<- readr::read_csv('./ted_main.csv')
@@ -53,10 +54,36 @@ naniar::vis_miss(dt)+
   theme(axis.text.x = element_text(angle = 90))
 ```
 
+The challenge with this data set lie in the `ratings`, `related_talks` and `tags` fields. These fields are `.json` files which were inserted into the .csv file. An example of data contained in an individual `ratings` observation is listed below:
 
-The present structure of the data has nested .json fields and they needs to be unnested and expanded. 
+```{r eval=FALSE, tidy=TRUE, tidy.opts=list(width.cutoff=60)}
+[{'id': 3, 'name': 'Courageous', 'count': 139}, {'id': 2, 'name': 'Confusing', 'count': 25}, {'id': 1, 'name': 'Beautiful', 'count': 48}, {'id': 9, 'name': 'Ingenious', 'count': 31}, {'id': 21, 'name': 'Unconvincing', 'count': 35}, {'id': 11, 'name': 'Longwinded', 'count': 21}, {'id': 8, 'name': 'Informative', 'count': 218}, {'id': 10, 'name': 'Inspiring', 'count': 113}, {'id': 22, 'name': 'Fascinating', 'count': 44}, {'id': 25, 'name': 'OK', 'count': 51}, {'id': 23, 'name': 'Jaw-dropping', 'count': 35}, {'id': 24, 'name': 'Persuasive', 'count': 112}, {'id': 7, 'name': 'Funny', 'count': 9}, {'id': 26, 'name': 'Obnoxious', 'count': 11}]
+```
 
-```{r}
+For the `related_talks` field, an example of the data contained in an individual observation is: 
+
+```{r eval=FALSE, tidy=TRUE, tidy.opts=list(width.cutoff=60)}
+[{'id': 127, 'hero': 'https://pe.tedcdn.com/images/ted/5cd871dcf27ba4288021c2bfe6a3f6796dab2538_2880x1620.jpg', 'speaker': 'Ngozi Okonjo-Iweala', 'title': 'Want to help Africa? Do business here', 'duration': 1213, 'slug': 'ngozi_okonjo_iweala_on_doing_business_in_africa', 'viewed_count': 1044183}, {'id': 1929, 'hero': 'https://pe.tedcdn.com/images/ted/82bbf525e7b13a879e6b7299303ec510f7ceb9fb_1600x1200.jpg', 'speaker': 'Michael Metcalfe', 'title': 'We need money for aid. So let’s print it.', 'duration': 864, 'slug': 'michael_metcalfe_we_need_money_for_aid_so_let_s_print_it', 'viewed_count': 756965}, {'id': 584, 'hero': 'https://pe.tedcdn.com/images/ted/98530_800x600.jpg', 'speaker': 'Paul Collier', 'title': 'New rules for rebuilding a broken nation', 'duration': 994, 'slug': 'paul_collier_s_new_rules_for_rebuilding_a_broken_nation', 'viewed_count': 406525}, {'id': 1196, 'hero': 'https://pe.tedcdn.com/images/ted/7bb5389d0360ef7905de6b6a017b7ce836ad673d_800x600.jpg', 'speaker': 'Rory Stewart', 'title': 'Time to end the war in Afghanistan', 'duration': 1202, 'slug': 'rory_stewart_time_to_end_the_war_in_afghanistan', 'viewed_count': 659270}, {'id': 270, 'hero': 'https://pe.tedcdn.com/images/ted/1cffd7f06b5754232bc90a0ca15b1339487d7200_2400x1800.jpg', 'speaker': 'Paul Collier', 'title': 'The \"bottom billion\"', 'duration': 1011, 'slug': 'paul_collier_shares_4_ways_to_help_the_bottom_billion', 'viewed_count': 990214}, {'id': 2806, 'hero': 'https://pe.tedcdn.com/images/ted/f26393b438dfc2ed8c8ae66d0c7291ac08629153_2880x1620.jpg', 'speaker': 'Jim Yong Kim', 'title': \"Doesn't everyone deserve a chance at a good life?\", 'duration': 1332, 'slug': 'jim_yong_kim_doesn_t_everyone_deserve_a_chance_at_a_good_life', 'viewed_count': 1341183}]
+```
+
+For the individual `tags` field, an example of the data contained in an individual observation is: 
+
+```{r eval=FALSE, tidy=TRUE, tidy.opts=list(width.cutoff=60)}
+['business', 'corruption', 'culture', 'economics', 'entrepreneur', 'global development', 'global issues', 'investment', 'military', 'policy', 'politics', 'poverty']
+```
+
+The present structure of the data has nested .json fields. For the data to be usable, it needs to be un-nested and expanded. 
+
+
+## Data Engineering
+
+The detailed line-by-line code for extracting the data is in the code appendix. So to discuss the issue more generally, the data needed to be extracted and converted from `.json` form to a data-frame. Surprisingly, `jsonlite` package was unable to parse the strings successfully. In lieu of this the `yaml` package was used. 
+
+Before employing the `yaml` package the data needed to be converted into a easier to read format. This involved removing and replacing recurring instates of forward slashes (a common escape tag) and converting utf-8 encoded characters into latin-ascii format^[This was an issue which was specific to windows, however on a mac or linux machine there was no issue. For consistency across machines. ]. In particular the `stringr` package was used for cleaning the `.json` strings (using `str_remove_all`) and the `stringi` package was used to convert the encoding from utf-8 to latin-ascii (by using `stri_trans_general`).
+
+This resulted in a transformed dataset which had 2550 observations of 17 variables to having 268156 observations of 17 variables. The data is used in this form for the last two questions in the analysis as it is in "long" form. For the first two questions the data needs to be pivoted to wide form and have all categorical variables be assigned as dummy variables. For this, the `dplyr`(a variety of functions) and `tidyr` (in particular `pivot_wider`) packages were employed. The resulting dataset returned to having 2550 observations, but now having 433 variables with all the additional variables being from the extracted from the nested `.json` in the `ratings`, `related_talks` and `tags`fields.  
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
 
 ratingsDf<- dt$ratings %>% 
             lapply(function(x) read_yaml(text=x)) %>% 
@@ -149,7 +176,7 @@ tagsDf<- do.call(rbind,tagsDf)
 ```
 
 
-```{r}
+```{r message=FALSE, warning=FALSE, include=FALSE}
 # Need to fix dates
 fullyJoinedDf<- ratingsDf %>%
                 left_join(tagsDf,by= "url") %>% 
@@ -162,7 +189,7 @@ fullyJoinedDf<- ratingsDf %>%
 ```
 
 
-```{r}
+```{r message=FALSE, warning=FALSE, include=FALSE}
 # Working dataframe
 dtt<-fullyJoinedDf %>%
       select(!ratingID) %>% 
@@ -171,7 +198,9 @@ dtt<-fullyJoinedDf %>%
                   names_prefix = "rating_") %>% 
       pivot_wider(names_from=tagValue,
                   values_from=tagValue,
-                  names_prefix = "tag_") %>% 
+                  names_prefix = "tag_") 
+
+dtt<- dtt %>% 
       mutate(across(names(dtt)[grepl("tag_",names(dtt))],~ ifelse(!is.na(.x),1,0)))
 ```
 
@@ -180,14 +209,18 @@ dtt<-fullyJoinedDf %>%
 
 ## Characteristics of TED Talks predict popularity
 
-This can be done by using LASSO regression
+For determining which characteristics predict popularity of a given TED talk, one of the paths of least resistance lies in employing LASSO regression. For this model, the variable of interest which measures intuitively would be the number of views accumulated by a given TED talk. 
 
-```{r}
+After doing 10-fold cross validation, it was determined that that MSE is minimized when $\lambda_{views} = 38914.59$ (see figure 2). Table 1 shows the non-zero sparse estimates. In general, TED talks that are primarily defined as informative, beautiful and funny are have more views. Particularly, shows relating to drones, magic and body language have more views, while shows relating to philosophy, personality and statistics (shockingly) have less views. 
+
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
 y <- dtt$views
 X <- data.matrix(dtt[,-which(names(dtt) %in% c("views"))])
 ```
 
-```{r}
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, fig.cap= "MSE vs $\\lambda_{views}$"}
 #perform k-fold cross-validation to find optimal lambda value
 cv_model_views <- cv.glmnet(X, y, alpha = 1)
 #find optimal lambda value that minimizes test MSE
@@ -197,7 +230,9 @@ best_lambda<- cv_model_views$lambda.min
 plot(cv_model_views, main =expression("MSE vs "*lambda[views]*""))
 ```
 
-```{r}
+\newpage
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
 best_model_views <- glmnet(X, y, alpha = 1, lambda = best_lambda)
 
 as.matrix(coef(best_model_views),rownames) %>% 
@@ -208,13 +243,17 @@ as.matrix(coef(best_model_views),rownames) %>%
 
 ## Different ways could the popularity of TED Talks be measured
 
-From simple inspection of the data the two possible ways that the popularity of a Ted Talk can be measured would be in terms of number of views and rating. Since we explored views in the previous section, in this section we will focus on rating and comments. 
+From simple inspection of the data, the three possible ways that the popularity of a Ted Talk can be measured would be in terms of number of views, ratings and comments. Since number of views were explored in the previous section, in this section we will focus on rating and comments. 
 
 ### Rating 
 
-From the data set it was determined that there are 14 unique rating tags for each TED talk. 
+From the data set it was determined that there are 14 unique rating tags for each TED talk. Table 2 shows the unique rating tags and the manual classification assigned to them. Since "OK" is an ambiguous term it is not given a good or bad assignment.
 
-```{r}
+<!---
+Got up to here.
+--->
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
 tibble(`Rating Tag` = unique(fullyJoinedDf$ratingTag),
        Classification = c("Good","Good","Good",
                           "Good","Bad","Bad",
@@ -224,7 +263,7 @@ tibble(`Rating Tag` = unique(fullyJoinedDf$ratingTag),
   knitr::kable(caption="Unique Rating Tags accross all Ted Talks")
 ```
 
-```{r}
+```{r message=FALSE, warning=FALSE}
 # Including Good/Bad Ratio
 dtt<-dtt %>% 
   rowwise() %>% 
@@ -243,7 +282,7 @@ dtt<-dtt %>%
 ```
 
 
-```{r message=TRUE, warning=FALSE}
+```{r echo=FALSE, message=FALSE, warning=FALSE}
 dtt %>%
 group_by(`Good/Bad Ratio`) %>% 
 arrange(-desc(`Good/Bad Ratio`),.by_group = T) %>%
@@ -252,7 +291,7 @@ filter(`Good/Bad Ratio` < 0.6083570) %>%
 knitr::kable(caption="Top 10 Worst Ted Talks")
 ```
 
-```{r}
+```{r echo=FALSE, message=FALSE, warning=FALSE}
 dtt %>%
 group_by(`Good/Bad Ratio`) %>% 
 arrange(desc(`Good/Bad Ratio`)) %>%
@@ -267,14 +306,14 @@ If we want to look at it in terms of engagement, we can view it in terms of comm
 
 
 
-```{r}
+```{r echo=FALSE, message=FALSE, warning=FALSE}
 # Comments
 
 y <- dtt$comments
 X <- data.matrix(dtt[,-which(names(dtt) %in% c("comments"))])
 ```
 
-```{r}
+```{r echo=FALSE, message=FALSE, warning=FALSE}
 #perform k-fold cross-validation to find optimal lambda value
 cv_model_comments <- cv.glmnet(X, y, alpha = 1)
 #find optimal lambda value that minimizes test MSE
@@ -284,7 +323,7 @@ best_lambda<- cv_model_comments$lambda.min
 plot(cv_model_comments, main =expression("MSE vs "*lambda[comments]*""))
 ```
 
-```{r}
+```{r echo=FALSE, message=FALSE, warning=FALSE}
 best_model_comments <- glmnet(X, y, alpha = 1, lambda = best_lambda)
 
 as.matrix(coef(best_model_comments),rownames) %>% 
@@ -295,7 +334,7 @@ as.matrix(coef(best_model_comments),rownames) %>%
 
 ## Characteristics predicting popularity over time
 
-```{r}
+```{r echo=FALSE, message=FALSE, warning=FALSE}
 fullyJoinedDf %>% 
   mutate(published_year = lubridate::year(published_date)) %>% 
   group_by(published_year,tagValue) %>% 
@@ -308,7 +347,7 @@ fullyJoinedDf %>%
   theme(legend.position = "none")
 ```
 
-```{r}
+```{r echo=FALSE, message=FALSE, warning=FALSE}
 fullyJoinedDf %>% 
   mutate(published_year = lubridate::year(published_date)) %>% 
   group_by(published_year,tagValue) %>% 
@@ -323,7 +362,57 @@ fullyJoinedDf %>%
 
 ## Characteristics that predict popularity differ based on the theme of the TED Talks
 
-MIXED MODEL IN SAS
+MIXED MODEL STRUCTURE
+$$Y = X\beta + Z\text{b}$$
+
+
+
+
+Where:
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+set.seed(6627)
+library(nlme)
+fit_views <- lme(views~ duration+ tagValue + languages + comments +duration*tagValue+languages*tagValue+comments*tagValue, 
+                 data=fullyJoinedDf%>% 
+                   filter(tagValue %in% c("culture","psychology","business","entertainment",
+                                          "dance","technology","global issues","design",
+                                          "science","TEDx","health","TED Fellows",  
+                                          "communication","innovation","society","future",
+                                          "humanity","social change")),
+                 random= ~ 1|main_speaker)
+
+
+sum_views<-summary(fit_views)
+
+knitr::kable(sum_views$tTable)
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+set.seed(6627)
+
+fit_comments <- lme(comments~ duration+ tagValue + languages + views +duration*tagValue+languages*tagValue+views*tagValue, 
+                 data=fullyJoinedDf%>% 
+                   filter(tagValue %in% c("culture","creativity","dance","children",     
+                                           "education","science","technology","religion",    
+                                           "God","global issues","entertainment","business",    
+                                           "TEDx","philosophy","neuroscience","health"  ,     
+                                           "TED Fellows","society","social change","future",     
+                                           "innovation","humanity","communication")),
+                 random= ~ 1|main_speaker)
+
+
+sum_comments<-summary(fit_comments)
+
+
+knitr::kable(sum_comments$tTable)
+```
+
+
+
+
 
 
 # Conclusion
