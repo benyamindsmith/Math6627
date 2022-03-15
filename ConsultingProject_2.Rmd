@@ -211,7 +211,7 @@ dtt<- dtt %>%
 
 For determining which characteristics predict popularity of a given TED talk, one of the paths of least resistance lies in employing LASSO regression. For this model, the variable of interest which measures intuitively would be the number of views accumulated by a given TED talk. 
 
-After doing 10-fold cross validation, it was determined that that MSE is minimized when $\lambda_{views} = 38914.59$ (see figure 2). Table 1 shows the non-zero sparse estimates. In general, TED talks that are primarily defined as informative, beautiful and funny are have more views. Particularly, shows relating to drones, magic and body language have more views, while shows relating to philosophy, personality and statistics (shockingly) have less views. 
+After doing 10-fold cross validation, it was determined that that MSE is minimized when $\lambda_{views} = 38914.59$ (see figure 2). Table 1 shows the non-zero sparse estimates. Generally speaking, TED talks that are more recent and are available in multiple languages get more views.  In terms of ratings (while it can be argued that this speaks more general to positive ratings), TED talks that are primarily rated as informative, beautiful and funny are have more views. In terms of tags, shows relating to drones, magic and body language have more views, while shows relating to philosophy, personality and statistics (shockingly) have less views. 
 
 
 ```{r message=FALSE, warning=FALSE, include=FALSE}
@@ -243,15 +243,14 @@ as.matrix(coef(best_model_views),rownames) %>%
 
 ## Different ways could the popularity of TED Talks be measured
 
-From simple inspection of the data, the three possible ways that the popularity of a Ted Talk can be measured would be in terms of number of views, ratings and comments. Since number of views were explored in the previous section, in this section we will focus on rating and comments. 
+From simple inspection of the data, the three possible ways that the popularity of a Ted Talk can be measured would be in terms of number of views, ratings and comments. Since number of views were explored in the previous section, in this section we will focus on ratings and comments. 
 
-### Rating 
+### Ratings 
 
-From the data set it was determined that there are 14 unique rating tags for each TED talk. Table 2 shows the unique rating tags and the manual classification assigned to them. Since "OK" is an ambiguous term it is not given a good or bad assignment.
+From the data set it was determined that there are 14 unique rating tags for each TED talk. Table 2 shows the unique rating tags and the manual classification assigned to them. Since "OK" is an ambiguous term it is not given a good or bad assignment. A "Good/Bad Ratio" is calculated by looking at the ratio of the number of positive and negative reviews.  With this ratio, tables 3 and 4 show the top 10 worst and best ted talks as classified by this ratio. 
 
-<!---
-Got up to here.
---->
+By visual inspection, it can be seen that the good/bad ratio is not indicative of engagement in terms of views^[However, from the sparse estimates in the LASSO model for predicting number of views, more positive reviews appear to effect the number of views on a given TED talk] or comments. 
+
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 tibble(`Rating Tag` = unique(fullyJoinedDf$ratingTag),
@@ -263,7 +262,7 @@ tibble(`Rating Tag` = unique(fullyJoinedDf$ratingTag),
   knitr::kable(caption="Unique Rating Tags accross all Ted Talks")
 ```
 
-```{r message=FALSE, warning=FALSE}
+```{r echo=FALSE, message=FALSE, warning=FALSE}
 # Including Good/Bad Ratio
 dtt<-dtt %>% 
   rowwise() %>% 
@@ -302,8 +301,9 @@ knitr::kable(caption="Top 10 Best Ted Talks")
 
 ### Comments
 
-If we want to look at it in terms of engagement, we can view it in terms of comments
+If we want to define popularity in terms of engagement, the number of comments on a given TED talk can be indicative. As in the case of predicting the number of views, LASSO regression is applied with the response variable being the number of comments on a given TED talk.  
 
+After doing 10-fold cross validation, it was determined that that MSE is minimized when $\lambda_{comments} = 5.742292$ (see figure 3). Table 5 shows the sparse estimates produced. In particular TED talks with tags about atheism, religion and G-d are some of the largest predictors. This is an intuitive result as for many these topics are controversial and will bring about much engagement in the form of comments.
 
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
@@ -313,7 +313,7 @@ y <- dtt$comments
 X <- data.matrix(dtt[,-which(names(dtt) %in% c("comments"))])
 ```
 
-```{r echo=FALSE, message=FALSE, warning=FALSE}
+```{r echo=FALSE, message=FALSE, warning=FALSE, fig.cap= "MSE vs $\\lambda_{comments}$"}
 #perform k-fold cross-validation to find optimal lambda value
 cv_model_comments <- cv.glmnet(X, y, alpha = 1)
 #find optimal lambda value that minimizes test MSE
@@ -331,45 +331,72 @@ as.matrix(coef(best_model_comments),rownames) %>%
   filter(s0!=0) %>% 
   knitr::kable(caption="Sparse Estimates for Ted Talk Popularity (in terms of comments)")
 ```
+\newpage
 
 ## Characteristics predicting popularity over time
 
-```{r echo=FALSE, message=FALSE, warning=FALSE}
+For seeing how the characteristics which predict popularity change over time, an exploratory approach is taken. Figures 4 and 5 demonstrate this. Since there are hundreds of tags, the top 5 tags with the most views and comments for each year were selected. In terms of views, talks with the tags "business", "culture", "entertainment","science","Technology" and "TEDx" have held some consistency over the years. In terms of comments, contrary to the LASSO regression results, it is found that talks with the tags "culture", "global issues" and "technology" proved to be the talks with the most comments. 
+
+It can thus be understood that the large LASSO estimates relating to the magnitude of the individual effect of a given tag while the figures 4 and 5 show the top tags among the TED talks available. 
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, fig.cap="Characteristics Predicting Popularity over time in terms of views"}
 fullyJoinedDf %>% 
   mutate(published_year = lubridate::year(published_date)) %>% 
   group_by(published_year,tagValue) %>% 
   summarize(total_views=sum(views)) %>% 
   slice_max(order_by = total_views, n = 5) %>% 
   ggplot()+
-  geom_point(mapping=aes(x=published_year,y=total_views,color=tagValue))+
+  geom_point(mapping=aes(x=as.factor(published_year),y=total_views,color=tagValue))+
   facet_wrap(~tagValue)+
   ggtitle("Characteristics Predicting Popularity over time (views)")+
-  theme(legend.position = "none")
+  theme(legend.position = "none",
+        axis.text.x = element_text(angle=90),
+        axis.title.y=element_blank(),
+        axis.title.x = element_blank())
 ```
 
-```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+```{r echo=FALSE, message=FALSE, warning=FALSE,fig.cap ="Characteristics Predicting Popularity over time in terms of comments"}
 fullyJoinedDf %>% 
   mutate(published_year = lubridate::year(published_date)) %>% 
   group_by(published_year,tagValue) %>% 
   summarize(total_comments=sum(comments)) %>% 
   slice_max(order_by = total_comments, n = 5) %>% 
   ggplot()+
-  geom_point(mapping=aes(x=published_year,y=total_comments,color=tagValue))+
+  geom_point(mapping=aes(x=as.factor(published_year),y=total_comments,color=tagValue))+
   facet_wrap(~tagValue)+
   ggtitle("Characteristics Predicting Popularity over time (comments)")+
-  theme(legend.position = "none")
+  theme(legend.position = "none",
+        axis.text.x = element_text(angle=90),
+        axis.title.y=element_blank(),
+        axis.title.x = element_blank())
 ```
+
+\newpage 
 
 ## Characteristics that predict popularity differ based on the theme of the TED Talks
 
-MIXED MODEL STRUCTURE
+To see which characteristics that predict popularity based on the theme of a given TED talk, a mixed model structure can be adopted. The model used is: 
+
 $$Y = X\beta + Z\text{b}$$
 
 
 
 
-Where:
+Where $Y$ is the response variable of interest (views or comments) and $X$ is the design matrix for the fixed effects $Z$ is the design matrix of the random effects and $\beta$ and $b$ are the  fixed and random effects vectors. 
 
+The fixed effects are:
+
+* Talk duration (`duration`)
+* Tag (`TagValue`)
+* Number of languages the talk is available in (`languages`)
+* For the views model - the number of comments
+* For the comments model- the number of views
+* Tag interaction with the other fixed effects (two way interactions)
+
+The random effects are assigned to the main speaker of the talk.
+
+[Up to here]
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 set.seed(6627)
@@ -420,3 +447,8 @@ knitr::kable(sum_comments$tTable)
 # References
 
 # Code Appendix
+
+```{r eval=FALSE, tidy=TRUE, tidy.opts=list(width.cutoff=60)}
+
+
+```
