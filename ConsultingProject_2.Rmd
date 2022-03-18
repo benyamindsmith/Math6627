@@ -396,7 +396,11 @@ The fixed effects are:
 
 The random effects are assigned to the main speaker of the talk.
 
-[Up to here]
+Since there are hundreds of tags available, the data for each model is filtered to the tags which appeared to get the most engagement as shown in the previous section. Tables 6 and 7 show the fixed effects summaries from the views and comments models. 
+
+For the views model, it is found that longer talks related to psychology and science have a significant^[Having a p-value of less than 0.05.] positive relationship with views while talks relating to other tags which are longer have a negative or a non-significant relationship^[Having a p value greater than 0.05] with views. Talks which are translated into more languages has a significant positive effect for views in talks related to culture, global issues, psychology, science, while other talks translated into more languages either had a negative or non-significant relationship with views. Talks with more comments which related to communication, dance, social change and TEDx have a significant positive relationship with views while other talks have a negative or non-significant relationship with views.  
+
+For the comments model, it is found that longer talks related to culture, G-d, philosophy and religion have a significant positive relationship with number of comments while talks relating to other topics have a negative or a non-significant relationship with the number of comments. Talks which are translated in more languages relating to communication, culture, G-d, humanity, philosophy, religion, social change and society has a significant positive relationship with number of comments a talk receives while others tags have a negative or non-significant relationship with the number of comments received. Talks with more views related to children, creativity, dance, education, global issues and religion have a significant positive relationship with the number of comments while other tags have a negative or non-significant relationship with the number of comments on a given talk. 
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 set.seed(6627)
@@ -413,7 +417,7 @@ fit_views <- lme(views~ duration+ tagValue + languages + comments +duration*tagV
 
 sum_views<-summary(fit_views)
 
-knitr::kable(sum_views$tTable)
+knitr::kable(sum_views$tTable, caption = "Fixed effects of the views mixed model")
 ```
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
@@ -434,12 +438,8 @@ fit_comments <- lme(comments~ duration+ tagValue + languages + views +duration*t
 sum_comments<-summary(fit_comments)
 
 
-knitr::kable(sum_comments$tTable)
+knitr::kable(sum_comments$tTable, caption = "Fixed effects of the comments mixed model")
 ```
-
-
-
-
 
 
 # Conclusion
