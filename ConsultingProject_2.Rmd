@@ -20,7 +20,7 @@ output:
 
 (Quoted from the SSC website)
 
-[TED](https://www.ted.com) spreads ideas, primarily via short talks that can be accessed on the internet. As noted on its website, TED was initiated in 1984 as a conference where technology, entertainment, and design ideas were shared. As of present present, TED Talks cover topics ranging from science to business to global issues.
+[TED](https://www.ted.com) spreads ideas, primarily via short talks that can be accessed on the internet. As noted on its website, TED was initiated in 1984 as a conference where technology, entertainment, and design ideas were shared. As of present, TED Talks cover topics ranging from science to business to global issues.
 
 
 The following analysis focuses on the use of inferential techniques to analyze the data. The questions addressed in this analysis are: 
@@ -79,9 +79,9 @@ The present structure of the data has nested .json fields. For the data to be us
 
 The detailed line-by-line code for extracting the data is in the code appendix. So to discuss the issue more generally, the data needed to be extracted and converted from `.json` form to a data-frame. Surprisingly, `jsonlite` package was unable to parse the strings successfully. In lieu of this the `yaml` package was used. 
 
-Before employing the `yaml` package the data needed to be converted into a easier to read format. This involved removing and replacing recurring instates of forward slashes (a common escape tag) and converting utf-8 encoded characters into latin-ascii format^[This was an issue which was specific to windows, however on a mac or linux machine there was no issue. For consistency across machines. ]. In particular the `stringr` package was used for cleaning the `.json` strings (using `str_remove_all`) and the `stringi` package was used to convert the encoding from utf-8 to latin-ascii (by using `stri_trans_general`).
+Before employing the `yaml` package the data needed to be converted into a format that is easier to read. This involved removing and replacing recurring instates of forward slashes (a common escape tag) and converting utf-8 encoded characters into latin-ascii format^[This was an issue which was specific to using the Windows operating system, however on a Mac or Linux operating system there was no such issue. For consistency across machines this was applied.]. In particular the `stringr` package was used for cleaning the `.json` strings (using `str_remove_all`) and the `stringi` package was used to convert the encoding from utf-8 to latin-ascii (by using `stri_trans_general`).
 
-This resulted in a transformed dataset which had 2550 observations of 17 variables to having 268156 observations of 17 variables. The data is used in this form for the last two questions in the analysis as it is in "long" form. For the first two questions the data needs to be pivoted to wide form and have all categorical variables be assigned as dummy variables. For this, the `dplyr`(a variety of functions) and `tidyr` (in particular `pivot_wider`) packages were employed. The resulting dataset returned to having 2550 observations, but now having 433 variables with all the additional variables being from the extracted from the nested `.json` in the `ratings`, `related_talks` and `tags`fields.  
+This resulted in a transformed data set which had 2550 observations of 17 variables to having 268156 observations of 17 variables. The data is used in this form for the last two questions in the analysis as it is in "long" form. For the first two questions the data needs to be pivoted to "wide" form and have all categorical variables be assigned as dummy variables. For this, the `dplyr`(a variety of functions) and `tidyr` (in particular `pivot_wider`) packages were employed. The resulting data set returned to having 2550 observations, but now having 433 variables with all the additional variables being from the extracted from the nested `.json` in the `ratings`, `related_talks` and `tags`fields.  
 
 ```{r message=FALSE, warning=FALSE, include=FALSE}
 
@@ -207,9 +207,9 @@ dtt<- dtt %>%
 
 # Analysis
 
-## Characteristics of TED Talks predict popularity
+## Characteristics of TED Talks Which Predict Popularity
 
-For determining which characteristics predict popularity of a given TED talk, one of the paths of least resistance lies in employing LASSO regression. For this model, the variable of interest which measures intuitively would be the number of views accumulated by a given TED talk. 
+For determining which characteristics predict popularity of a given TED talk, one of the paths of least resistance lies in employing LASSO regression. For this model, the variable of interest which measures popularity would intuitively be the number of views accumulated by a given TED talk. 
 
 After doing 10-fold cross validation, it was determined that that MSE is minimized when $\lambda_{views} = 38914.59$ (see figure 2). Table 1 shows the non-zero sparse estimates. Generally speaking, TED talks that are more recent and are available in multiple languages get more views.  In terms of ratings (while it can be argued that this speaks more general to positive ratings), TED talks that are primarily rated as informative, beautiful and funny are have more views. In terms of tags, shows relating to drones, magic and body language have more views, while shows relating to philosophy, personality and statistics (shockingly) have less views. 
 
@@ -241,7 +241,7 @@ as.matrix(coef(best_model_views),rownames) %>%
   knitr::kable(caption="Sparse Estimates for Ted Talk Popularity (in terms of Views)")
 ```
 
-## Different ways could the popularity of TED Talks be measured
+## Different Ways Popularity Of TED Talks Can Be Measured
 
 From simple inspection of the data, the three possible ways that the popularity of a Ted Talk can be measured would be in terms of number of views, ratings and comments. Since number of views were explored in the previous section, in this section we will focus on ratings and comments. 
 
@@ -335,7 +335,7 @@ as.matrix(coef(best_model_comments),rownames) %>%
 
 ## Characteristics predicting popularity over time
 
-For seeing how the characteristics which predict popularity change over time, an exploratory approach is taken. Figures 4 and 5 demonstrate this. Since there are hundreds of tags, the top 5 tags with the most views and comments for each year were selected. In terms of views, talks with the tags "business", "culture", "entertainment","science","Technology" and "TEDx" have held some consistency over the years. In terms of comments, contrary to the LASSO regression results, it is found that talks with the tags "culture", "global issues" and "technology" proved to be the talks with the most comments. 
+For seeing how the characteristics which predict popularity change over time, an exploratory approach is taken. Figures 4 and 5 demonstrate this. Since there are hundreds of tags, the top 5 tags with the most views and comments for each year were selected. In terms of views, talks with the tags "business", "culture", "entertainment","science","technology" and "TEDx" have held some consistency over the years. In terms of comments, contrary to the LASSO regression results, it is found that talks with the tags "culture", "global issues" and "technology" proved to be the talks with the most comments. 
 
 It can thus be understood that the large LASSO estimates relating to the magnitude of the individual effect of a given tag while the figures 4 and 5 show the top tags among the TED talks available. 
 
@@ -374,7 +374,7 @@ fullyJoinedDf %>%
 
 \newpage 
 
-## Characteristics that predict popularity differ based on the theme of the TED Talks
+## Characteristics That Predict Popularity Based On The Theme Of The TED Talk
 
 To see which characteristics that predict popularity based on the theme of a given TED talk, a mixed model structure can be adopted. The model used is: 
 
@@ -400,7 +400,7 @@ Since there are hundreds of tags available, the data for each model is filtered 
 
 For the views model, it is found that longer talks related to psychology and science have a significant^[Having a p-value of less than 0.05.] positive relationship with views while talks relating to other tags which are longer have a negative or a non-significant relationship^[Having a p value greater than 0.05] with views. Talks which are translated into more languages has a significant positive effect for views in talks related to culture, global issues, psychology, science, while other talks translated into more languages either had a negative or non-significant relationship with views. Talks with more comments which related to communication, dance, social change and TEDx have a significant positive relationship with views while other talks have a negative or non-significant relationship with views.  
 
-For the comments model, it is found that longer talks related to culture, G-d, philosophy and religion have a significant positive relationship with number of comments while talks relating to other topics have a negative or a non-significant relationship with the number of comments. Talks which are translated in more languages relating to communication, culture, G-d, humanity, philosophy, religion, social change and society has a significant positive relationship with number of comments a talk receives while others tags have a negative or non-significant relationship with the number of comments received. Talks with more views related to children, creativity, dance, education, global issues and religion have a significant positive relationship with the number of comments while other tags have a negative or non-significant relationship with the number of comments on a given talk. 
+For the comments model, it is found that longer talks related to culture, G-d, philosophy and religion have a significant positive relationship with number of comments while talks relating to other topics have a negative or a non-significant relationship with the number of comments. Talks which are translated in more languages relating to communication, culture, G-d, humanity, philosophy, religion, social change and society has a significant positive relationship with number of comments a talk receives while other tags have a negative or non-significant relationship with the number of comments received. Talks with more views related to children, creativity, dance, education, global issues and religion have a significant positive relationship with the number of comments while other tags have a negative or non-significant relationship with the number of comments on a given talk. 
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 set.seed(6627)
@@ -444,11 +444,304 @@ knitr::kable(sum_comments$tTable, caption = "Fixed effects of the comments mixed
 
 # Conclusion
 
+After dealing with reshaping of the data, the use of LASSO regression and mixed models proved to be a straight forward approach for analyzing this data set. 
+
+The use of a positive/negative ratings ratio as a measure on its own was not a clear measure for popularity in terms of views or comments. In terms of views and comments positive ratings have a positive relationship with the number of views/comments on a given talk. In terms of tags, shows relating to drones, magic and body language have more views, while shows relating to philosophy, personality and statistics (shockingly) have less views. In terms of comments,  TED talks with tags about atheism, religion and G-d are some of the largest predictors. 
+
+By using a mixed model, the interactions with the tags provide insight into which talks receive more views/comments. 
+
 # References
+
+1. Statistical Society of Canada, What Predicts The Popularity Of Ted Talks?, https://ssc.ca/en/case-study/case-study-2-what-predicts-popularity-ted-talks
+
+2. TED, https://www.ted.com
+
+3. Kaggle. TED Talks, Data about TED Talks on the TED.com website until September 21st, 2017. Rounak Banik, https://www.kaggle.com/rounakbanik/ted-talks
 
 # Code Appendix
 
 ```{r eval=FALSE, tidy=TRUE, tidy.opts=list(width.cutoff=60)}
 
+library(tidyverse)
+library(stringr)
+library(stringi)
+library(glmnet)
+library(lme4)
+library(jsonlite)
+library(nlme)
+library(yaml)
+library(tidyr)
+dt<- readr::read_csv('./ted_main.csv')
+
+# No missing data
+naniar::vis_miss(dt)+
+  theme(axis.text.x = element_text(angle = 90))
+
+######################
+## Data Engineering ##
+######################
+
+ratingsDf<- dt$ratings %>% 
+            lapply(function(x) read_yaml(text=x)) %>% 
+            lapply(function(x) do.call(rbind,x))
+
+# Using a for loop because vectorizing is hard. Don't make fun of me
+
+for(i in 1:length(ratingsDf)){
+  
+  ratingsDf[[i]]<- ratingsDf[[i]] %>% 
+                   as.data.frame.matrix() %>% 
+                   transmute(ratingID= id,
+                             ratingTag = name,
+                             count=count,
+                             url= rep(dt$url[i],length(ratingsDf[[i]][,1])))
+  
+}
+
+ratingsDf<-do.call(rbind,ratingsDf) %>% unnest()
+
+# Manually editing JSON Files to be read into R
+# The titles may differ as such
+setwd("Proj2JsonFiles")
+for(i in 1:length(dt$related_talks)){
+ 
+  write(dt$related_talks[i] %>%
+          str_remove_all("(?<=\\w)\\'(?=\\w)") %>%
+          str_remove_all("’") %>%  
+          str_remove_all("\\\\'") %>% 
+          str_replace("é","e") %>% 
+          stri_trans_general("latin-ascii"),paste0(i,'.json'))
+}
+
+relatedTalksJSON<- list()
+
+for(i in 1:length(dt$related_talks)){
+  tryCatch(
+    { relatedTalksJSON[[i]]<- read_yaml(paste0(i,'.json')) },
+    error = function(e){
+      tryCatch(
+        {
+          relatedTalksJSON[[i]]<-read_yaml(text=dt$related_talks[i] %>% str_remove_all("\\'"))
+        },
+        error = function(f) {
+           relatedTalksJSON[[i]]<-read_yaml(text=dt$related_talks[i] %>% str_remove_all('\\"') %>% str_remove_all("\\\\'") %>% stri_trans_general("latin-ascii")) 
+        },
+        finally=i
+               )
+      }
+      ,
+    finally=i
+  )
+}
+
+
+for(i in 1:length(relatedTalksJSON)){
+  
+    relatedTalksJSON[[i]]<- relatedTalksJSON[[i]] %>% lapply(function(y) as.data.frame(y) %>% mutate(url=dt$url[i]))
+      
+  
+}
+
+relatedTalksJSONDf<-list()
+for (i in 1:length(relatedTalksJSON)){
+  relatedTalksJSONDf[[i]]<-do.call(rbind,relatedTalksJSON[i])
+}
+
+relatedTalksJSONDf <- relatedTalksJSONDf %>% lapply(function(x) t(x))
+relatedTalksJSONDf<-do.call(rbind,do.call(rbind,relatedTalksJSONDf)) %>% 
+                    transmute(related_talks_id=id,
+                              related_talks_hero=hero,
+                              related_talks_speaker=speaker,
+                              related_talks_title=title,
+                              related_talks_duration=duration,
+                              related_talks_slug = slug,
+                              related_talks_view_count = viewed_count,
+                              url=url)
+
+
+tagsDf <- dt$tags %>% 
+  lapply(function(x) read_yaml(text=x) %>% as_tibble()) 
+
+for(i in 1:length(tagsDf)){
+  tagsDf[[i]]<- tagsDf[[i]] %>% 
+                   transmute(tagValue=value,
+                             url = rep(dt$url[i],length(tagsDf [[i]][,1])))
+}
+
+tagsDf<- do.call(rbind,tagsDf)
+
+
+# Need to fix dates
+fullyJoinedDf<- ratingsDf %>%
+                left_join(tagsDf,by= "url") %>% 
+                left_join(dt, by="url") %>% 
+                select(!c(description,tags,related_talks,ratings)) %>% 
+                mutate(
+                       film_date = lubridate::as_datetime(film_date),
+                       published_date=lubridate::as_datetime(published_date))
+              
+
+# Working dataframe
+dtt<-fullyJoinedDf %>%
+      select(!ratingID) %>% 
+      pivot_wider(names_from = ratingTag, 
+                  values_from = count,
+                  names_prefix = "rating_") %>% 
+      pivot_wider(names_from=tagValue,
+                  values_from=tagValue,
+                  names_prefix = "tag_") 
+
+dtt<- dtt %>% 
+      mutate(across(names(dtt)[grepl("tag_",names(dtt))],~ ifelse(!is.na(.x),1,0)))
+
+
+############
+# Analysis #
+############
+
+y <- dtt$views
+X <- data.matrix(dtt[,-which(names(dtt) %in% c("views"))])
+
+
+#perform k-fold cross-validation to find optimal lambda value
+cv_model_views <- cv.glmnet(X, y, alpha = 1)
+#find optimal lambda value that minimizes test MSE
+best_lambda<- cv_model_views$lambda.min
+
+#produce plot of test MSE by lambda value
+plot(cv_model_views, main =expression("MSE vs "*lambda[views]*""))
+
+
+best_model_views <- glmnet(X, y, alpha = 1, lambda = best_lambda)
+
+as.matrix(coef(best_model_views),rownames) %>% 
+  as.data.frame.matrix() %>% 
+  filter(s0!=0) %>% 
+  knitr::kable(caption="Sparse Estimates for Ted Talk Popularity (in terms of Views)")
+
+tibble(`Rating Tag` = unique(fullyJoinedDf$ratingTag),
+       Classification = c("Good","Good","Good",
+                          "Good","Bad","Bad",
+                          "Good","Good","Bad",
+                          "Good","Good","Ambiguos",
+                          "Bad","Bad")) %>%
+  knitr::kable(caption="Unique Rating Tags accross all Ted Talks")
+
+
+# Including Good/Bad Ratio
+dtt<-dtt %>% 
+  rowwise() %>% 
+  mutate(`Good/Bad Ratio` = sum(rating_Funny,
+                                rating_Beautiful,
+                                rating_Ingenious,
+                                rating_Courageous,
+                                rating_Informative,
+                                rating_Fascinating,
+                                rating_Persuasive,
+                                `rating_Jaw-dropping`)/sum(rating_Longwinded,
+                                                           rating_Confusing,
+                                                           rating_Unconvincing,
+                                                           rating_Obnoxious,
+                                                           rating_Inspiring))
+
+dtt %>%
+group_by(`Good/Bad Ratio`) %>% 
+arrange(-desc(`Good/Bad Ratio`),.by_group = T) %>%
+select(name,`Good/Bad Ratio`,views,comments,published_date) %>% 
+filter(`Good/Bad Ratio` < 0.6083570) %>% 
+knitr::kable(caption="Top 10 Worst Ted Talks")
+
+
+dtt %>%
+group_by(`Good/Bad Ratio`) %>% 
+arrange(desc(`Good/Bad Ratio`)) %>%
+select(name,`Good/Bad Ratio`,views,comments,published_date) %>% 
+filter(`Good/Bad Ratio` >= 18.714285) %>% 
+knitr::kable(caption="Top 10 Best Ted Talks")  
+
+
+# Comments
+
+y <- dtt$comments
+X <- data.matrix(dtt[,-which(names(dtt) %in% c("comments"))])
+
+#perform k-fold cross-validation to find optimal lambda value
+cv_model_comments <- cv.glmnet(X, y, alpha = 1)
+#find optimal lambda value that minimizes test MSE
+best_lambda<- cv_model_comments$lambda.min
+
+#produce plot of test MSE by lambda value
+plot(cv_model_comments, main =expression("MSE vs "*lambda[comments]*""))
+
+
+best_model_comments <- glmnet(X, y, alpha = 1, lambda = best_lambda)
+
+as.matrix(coef(best_model_comments),rownames) %>% 
+  as.data.frame.matrix() %>% 
+  filter(s0!=0) %>% 
+  knitr::kable(caption="Sparse Estimates for Ted Talk Popularity (in terms of comments)")
+
+
+fullyJoinedDf %>% 
+  mutate(published_year = lubridate::year(published_date)) %>% 
+  group_by(published_year,tagValue) %>% 
+  summarize(total_views=sum(views)) %>% 
+  slice_max(order_by = total_views, n = 5) %>% 
+  ggplot()+
+  geom_point(mapping=aes(x=as.factor(published_year),y=total_views,color=tagValue))+
+  facet_wrap(~tagValue)+
+  ggtitle("Characteristics Predicting Popularity over time (views)")+
+  theme(legend.position = "none",
+        axis.text.x = element_text(angle=90),
+        axis.title.y=element_blank(),
+        axis.title.x = element_blank())
+
+fullyJoinedDf %>% 
+  mutate(published_year = lubridate::year(published_date)) %>% 
+  group_by(published_year,tagValue) %>% 
+  summarize(total_comments=sum(comments)) %>% 
+  slice_max(order_by = total_comments, n = 5) %>% 
+  ggplot()+
+  geom_point(mapping=aes(x=as.factor(published_year),y=total_comments,color=tagValue))+
+  facet_wrap(~tagValue)+
+  ggtitle("Characteristics Predicting Popularity over time (comments)")+
+  theme(legend.position = "none",
+        axis.text.x = element_text(angle=90),
+        axis.title.y=element_blank(),
+        axis.title.x = element_blank())
+
+set.seed(6627)
+library(nlme)
+fit_views <- lme(views~ duration+ tagValue + languages + comments +duration*tagValue+languages*tagValue+comments*tagValue, 
+                 data=fullyJoinedDf%>% 
+                   filter(tagValue %in% c("culture","psychology","business","entertainment",
+                                          "dance","technology","global issues","design",
+                                          "science","TEDx","health","TED Fellows",  
+                                          "communication","innovation","society","future",
+                                          "humanity","social change")),
+                 random= ~ 1|main_speaker)
+
+
+sum_views<-summary(fit_views)
+
+knitr::kable(sum_views$tTable, caption = "Fixed effects of the views mixed model")
+
+set.seed(6627)
+
+fit_comments <- lme(comments~ duration+ tagValue + languages + views +duration*tagValue+languages*tagValue+views*tagValue, 
+                 data=fullyJoinedDf%>% 
+                   filter(tagValue %in% c("culture","creativity","dance","children",     
+                                           "education","science","technology","religion",    
+                                           "God","global issues","entertainment","business",    
+                                           "TEDx","philosophy","neuroscience","health"  ,     
+                                           "TED Fellows","society","social change","future",     
+                                           "innovation","humanity","communication")),
+                 random= ~ 1|main_speaker)
+
+
+sum_comments<-summary(fit_comments)
+
+
+knitr::kable(sum_comments$tTable, caption = "Fixed effects of the comments mixed model")
 
 ```
