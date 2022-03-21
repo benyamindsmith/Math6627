@@ -1,0 +1,92 @@
+---
+title: "Can Gene Expression Data Identify Patients With Inflammatory Bowel Disease?"
+subtitle: "A Consulting Project for Math 6627 (3/3)"
+author: "Benjamin Smith"
+date: "`r format(Sys.time(), '%d %B %Y')`"
+output:
+  pdf_document: 
+    includes: 
+      in_header: "ConsultingProject1.tex"
+    toc: true
+---
+
+# Introduction
+
+(Quoted from SSC website.)
+
+Inflammatory bowel disease (IBD), which is comprised of the two disease entities of Crohn’s disease (CD) and ulcerative colitis (UC), is an incurable gastrointestinal illness that results in chronic inflammation. IBD greatly affects patients’ quality of life. Approximately 1.5 million people have IBD in the United States and Canada, where the rates are among the highest in the world. 
+
+There are currently no biomarkers for IBD, which could help to identify better treatments and individualize patient care. Such biomarkers could also be used to facilitate the development of clinical trials involving new medications. Recently, genome-wide association studies (GWAS) have significantly advanced our understanding about the importance of genetic susceptibility in IBD. Studies have identified a total of 201 IBD loci (Liu et al. 2015). However, these loci have yielded only a handful of candidate genes which often have small contributory effect in IBD. 
+
+The aim of this case study is to construct classifiers for IBD using global gene expression data based on these candidate genes. The research questions are:
+
+1. Can data features (i.e., variables or probesets or genes) be used to cluster individuals into three biological groups (i.e., healthy individuals, CD patients, UC patients)? 
+
+2. Can data features (i.e., variables, probesets or genes) predict the disease state of individuals from three biological groups (i.e., healthy individuals, CD patients, UC patients)? 
+
+
+# The Data
+
+The data available consists of two datasets: 
+
+(Quoted from SSC website.)
+
+1. Global gene expression data: Burczynski et al. (2006) generated genome-wide gene expression profiles for 41 healthy individuals (note that the processed data includes only 41 individuals although the original study included 42 individuals), 59 CD patients, and 26 UC patients using Affymetrix HG-U133A human GeneChip array.  The GeneChip include approximate 22,000 probesets (each gene may have multiple probesets). The expression level of each probeset in each individual was quantified using MAS 5.0 software (we downloaded the processed data from ArrayExpress: E-GEOD-3365). 
+
+2. IBD candidate genes: IBD candidate genes implicated in the 201 IBD associated loci were evaluated using GRAIL (Gene Relationships across Implicated Loci) and DAPPLE (Disease Association Protein-Protein Link Evaluator) software tools. A total of 225 unique genes (see Supplementary Table 9 of Liu et al. 2015) were identified, and 185 of these 225 genes are on the Affymetrix HG-U133A human GeneChip array.  These 185 candidate genes include 309 probesets.
+
+After the data was appropriately transformed for the analysis it is 
+
+```{r}
+library(tidyverse)
+library(reshape2)
+library(readxl)
+library(nlme)
+library(glmnet)
+
+dt1 <- read_excel("ConsultingData_3.xlsx", sheet=1) 
+dt2 <- read_excel("ConsultingData_3.xlsx", sheet=2)
+
+# For now not using joined data
+#joined_data<- dt1 %>% left_join(dt2)
+
+dtt <- dt1 %>%
+        t() %>% 
+        as_tibble() %>% 
+        setNames(dt1 %>% 
+  t() %>% 
+  as_tibble() %>% 
+  slice(1:2) %>%
+  as.list() %>% 
+  lapply(function(x) x[!is.na(x)]) %>% 
+  unname() %>%
+  unlist()) %>% 
+  slice(c(3:n()))
+```
+
+
+# Analysis
+
+## Clustering Individuals Into Three Biological Groups
+
+## What Data Features Can Predict The Disease State From Three Biological Groups
+ 
+
+# Conclusion
+
+
+
+# References
+
+1. Statistical Society of Canada, Can Gene Expression Data Identify Patients With Inflammatory Bowel Disease? (2017). https://ssc.ca/en/meeting/annual/2017/case-study-2
+
+2. Liu JZ, van Sommeren S, Huang H, et al. Association analyses identify 38 susceptibility loci for inflammatory bowel disease and highlight shared genetic risk across populations. Nat Genet. 47(9):979-86 (2015).
+
+3. Ron LP, Natalie CT, Krystyna AZ, et al. Molecular classification of Crohn's disease and ulcerative colitis patients using transcriptional profiles in peripheral blood mononuclear cells. Michael E Burczynski, J Mol Diagn 8(1):51-61 (2006).
+
+4. Ambroise C, McLachlan GJ. Selection bias in gene extraction on the basis of microarray gene-expression data. Proc Natl Acad Sci USA. 99(10):6562-6 (2002).
+
+5. Dupuy A, Simon RM. Critical review of published microarray studies for cancer outcome and guidelines on statistical analysis and reporting. J Natl Cancer Inst. 99(2):147-57 (2007).
+
+
+# Code Appendix
