@@ -63,6 +63,10 @@ dtt <- dt1 %>%
   unname() %>%
   unlist()) %>% 
   slice(c(3:n()))
+
+dtt<- dtt %>% 
+      mutate(across(names(dtt)[-c(1,3,4)], ~as.numeric(.x)),
+             Group = ifelse(Group ==  "Ulcerative" | Group =="Ulcerative Colitis", "Ulcerative Colitis",Group))
 ```
 
 
@@ -73,6 +77,28 @@ dtt <- dt1 %>%
 ## Clustering Individuals Into Three Biological Groups
 
 [PCA REGRESSION]
+
+```{r}
+pca<- prcomp(data.matrix(dtt[,-1]), center = TRUE, scale = TRUE)
+
+# We can use the first 3 principal components
+plot(pca)
+```
+
+```{r}
+library(pls)
+library(caret)
+set.seed(1)
+
+model <- train(
+  Group ~ .,
+  data = data.matrix(dtt),
+  method = 'glm',
+  preProcess = c("pca")
+)
+model
+```
+
 
 
 ## What Data Features Can Predict The Disease State From Three Biological Groups
