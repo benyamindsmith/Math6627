@@ -66,7 +66,10 @@ dtt <- dt1 %>%
 
 dtt<- dtt %>% 
       mutate(across(names(dtt)[-c(1,3,4)], ~as.numeric(.x)),
-             Group = ifelse(Group ==  "Ulcerative" | Group =="Ulcerative Colitis", "Ulcerative Colitis",Group))
+             Group = ifelse(Group ==  "Ulcerative" | Group =="Ulcerative Colitis", "Ulcerative Colitis",Group),
+             Ethnicity =  ifelse( Ethnicity ==  "cacuasian" | Group =="caucasian", "caucasian",Ethnicity) )
+
+#write.csv(dtt, "ConsultingData_3.csv") 
 ```
 
 
@@ -76,13 +79,17 @@ dtt<- dtt %>%
 
 ## Clustering Individuals Into Three Biological Groups
 
-[PCA REGRESSION]
+[PCA REGRESSION ]
 
 ```{r}
+library(factoextra)
 pca<- prcomp(data.matrix(dtt[,-1]), center = TRUE, scale = TRUE)
 
-# We can use the first 3 principal components
-plot(pca)
+# We can use the first 38 principal components
+pca_summary<-summary(pca)
+
+# This agrees with the paper results
+pca_summary$importance[,1:38]
 ```
 
 ```{r}
@@ -90,13 +97,13 @@ library(pls)
 library(caret)
 set.seed(1)
 
-model <- train(
-  Group ~ .,
-  data = data.matrix(dtt),
-  method = 'glm',
-  preProcess = c("pca")
-)
-model
+pcr_model <- pcr(Group~ ., 
+                 data = data.matrix(dtt) %>% as.data.frame.matrix(), 
+                 scale = TRUE, 
+                 validation = "CV")
+
+validationplot(pcr_model, val.type="MSEP")
+
 ```
 
 
@@ -104,6 +111,43 @@ model
 ## What Data Features Can Predict The Disease State From Three Biological Groups
 
 [MULTINOMIAL REGRESSION] 
+
+```{r}
+dtt2 <- data.matrix(dtt)
+y <- dtt2[,1]
+X <- dtt2[,-1]
+
+# 10 -fold crossvalidation
+cv_model <- cv.glmnet(X, y, family='multinomial', alpha = 1)
+best_lambda<- cv_model$lambda.min
+```
+
+
+```{r}
+plot(cv_model,main="This needs a caption")
+```
+
+```{r}
+best_model <- glmnet(X, y, alpha = 1, lambda = best_lambda)
+
+
+sparseEstimates<- as.matrix(coef(best_model),rownames) %>% 
+                  as.data.frame.matrix() %>%  
+                  filter(s0!=0)
+
+sparseEstimates[order(-abs(sparseEstimates$s0)),,drop=FALSE] %>%  knitr::kable(caption="Sparse Estimates")
+```
+
+
+```{r}
+library(mclogit)
+library(nnet)
+library(memisc)
+
+mod <- multinom(Group ~ .,data=dtt)
+```
+
+
 
 # Conclusion
 
