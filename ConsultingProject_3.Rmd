@@ -35,7 +35,7 @@ The data available consists of two datasets:
 
 2. IBD candidate genes: IBD candidate genes implicated in the 201 IBD associated loci were evaluated using GRAIL (Gene Relationships across Implicated Loci) and DAPPLE (Disease Association Protein-Protein Link Evaluator) software tools. A total of 225 unique genes (see Supplementary Table 9 of Liu et al. 2015) were identified, and 185 of these 225 genes are on the Affymetrix HG-U133A human GeneChip array.  These 185 candidate genes include 309 probesets.
 
-After the data was appropriately transformed for the analysis it is 
+Due to lack of domain knowledge and the ambiguity of the dataset, only the first data set will be used for this analysis. After the global gene expression data shaped properly for the analysis, there is no missing data present. With this taken care of, lets proceed with answering the two research questions. 
 
 ```{r}
 library(tidyverse)
@@ -47,6 +47,7 @@ library(glmnet)
 dt1 <- read_excel("ConsultingData_3.xlsx", sheet=1) 
 dt2 <- read_excel("ConsultingData_3.xlsx", sheet=2)
 
+dtt2<-model.matrix(~Gene.Symbol, dt2)
 # For now not using joined data
 #joined_data<- dt1 %>% left_join(dt2)
 
@@ -65,12 +66,18 @@ dtt <- dt1 %>%
 ```
 
 
+
 # Analysis
+
 
 ## Clustering Individuals Into Three Biological Groups
 
+[PCA REGRESSION]
+
+
 ## What Data Features Can Predict The Disease State From Three Biological Groups
- 
+
+[MULTINOMIAL REGRESSION] 
 
 # Conclusion
 
