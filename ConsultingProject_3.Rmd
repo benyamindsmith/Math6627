@@ -5,8 +5,6 @@ author: "Benjamin Smith"
 date: "`r format(Sys.time(), '%d %B %Y')`"
 output:
   pdf_document: 
-    includes: 
-      in_header: "ConsultingProject1.tex"
     toc: true
 ---
 
@@ -37,7 +35,8 @@ The data available consists of two datasets:
 
 Due to lack of domain knowledge and the ambiguity of the dataset, only the first data set will be used for this analysis. After the global gene expression data shaped properly for the analysis, there is no missing data present. With this taken care of, lets proceed with answering the two research questions. 
 
-```{r}
+```{r message=FALSE, warning=FALSE, include=FALSE}
+
 library(tidyverse)
 library(reshape2)
 library(readxl)
@@ -79,9 +78,11 @@ dtt<- dtt %>%
 
 ## Clustering Individuals Into Three Biological Groups
 
-[PCA REGRESSION ]
+As is the case with the assignments in this practicum, the ability to thoroughly analyze the data under time constraint presents its challenges. On the SSC website it mentions that Liu, van Sommeren, Huang, et al found through association analyses which identify 38 susceptibility loci for inflammatory bowel disease and highlight shared genetic risk across populations. To explain that in terms for that people with a non-genetics background - the result found by Liu, van Sommeren, Huang, et al identifies 38 specific locations on an subjects chromosomes which highlight shared genetic risk across populations. 
 
-```{r}
+An approach to cluster the data into three groups can be done through principal component analysis. Interestingly enough, ~ 80% of the variance in the data can be explained by 38 principal components as shown in the R output below: 
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
 library(factoextra)
 pca<- prcomp(data.matrix(dtt[,-1]), center = TRUE, scale = TRUE)
 
@@ -91,6 +92,102 @@ pca_summary<-summary(pca)
 # This agrees with the paper results
 pca_summary$importance[,1:38]
 ```
+
+
+
+A way to view the effectiveness of such a model would be to use 10-fold cross validation and see the mean-square error of prediction produced.  From figures 1 and 2 the MSE produced from PCA regression using 38 components produces a MSE of around 0.43 and the spread between predicted and measured groups is quite large. From this it can be seen that the 38 principal components are useful for explaining the variance in the data, however as a method for classifying individuals it is quite poor.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE,fig.cap="Mean Square Error of Prediction With PCA Regresion (38 Components)"}
+library(pls)
+library(caret)
+set.seed(1)
+
+pcr_model <- pcr(Group~ ., 
+                 data = data.matrix(dtt) %>% as.data.frame.matrix(), 
+                 scale = TRUE, 
+                 validation = "CV",
+                 ncomp=38)
+
+
+validationplot(pcr_model, val.type=c("MSEP"),main="Mean Square Error of Prediction With PCA Regresion (38 Components)")
+
+```
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE,fig.cap="Predicted vs Measured Values using PCA Regression with 38 Components"}
+predplot(pcr_model, main="Predicted vs Measured Values using PCA Regression with\n 38 Components")
+
+```
+
+While this method did prove to be a successful method for clustering data, it does demonstrate (and confirm) that the finding by  Liu, van Sommeren, Huang, et al identifies loci which are susceptible to receiving the diseases in question, but are not useful as predictors in of themselves. 
+
+\newpage
+
+## What Data Features Can Predict The Disease State From Three Biological Groups
+
+With a focus on prediction, the use of multinomial regression with 10-fold cross validation is employed with a traditional machine learning approach where the data is split into training and testing sets with a 75%/25% training-testing split in the data. 
+
+[ADD FIGURE CAPTIONS AND DESCRIPTIONS]
+
+```{r}
+set.seed(1)
+dtt2 <- data.matrix(dtt)
+y <- dtt2[,1]
+X <- dtt2[,-1]
+
+train = sample(seq(length(y)),75,replace=FALSE)
+# 10 -fold crossvalidation
+cv_model <- cv.glmnet(X, y, family='multinomial', alpha = 1)
+best_lambda<- cv_model$lambda.min
+```
+
+
+```{r}
+plot(cv_model,main=expression("Multinomial Deviance vs "*lambda[Group]*""))
+```
+
+```{r}
+train_model <- glmnet(X[train,], y[train],family='multinomial', alpha = 1, lambda = best_lambda)
+
+confusion.glmnet(train_model, newx = X[-train,], newy = y[-train])
+```
+
+```{r}
+sparseEstimates<-data.frame(
+       `Crohn's Disease`=train_model$beta$`1`[,],
+       `Normal` =train_model$beta$`2`[,],
+       `Ulcerative Colitis`=train_model$beta$`3`[,])
+
+colnames(sparseEstimates)<-c("Crohn's Disease","Normal","Ulcerative Colitis")
+
+sparseEstimates %>% 
+  filter(!(`Crohn's Disease`==0 &`Normal`==0 & `Ulcerative Colitis`==0)) %>% 
+  knitr::kable(caption = "Sparse Estimates for Multinomial Classification of Groups")
+```
+
+
+
+
+
+# Conclusion
+
+
+
+# References
+
+1. Statistical Society of Canada, Can Gene Expression Data Identify Patients With Inflammatory Bowel Disease? (2017). https://ssc.ca/en/meeting/annual/2017/case-study-2
+
+2. Liu JZ, van Sommeren S, Huang H, et al. Association analyses identify 38 susceptibility loci for inflammatory bowel disease and highlight shared genetic risk across populations. Nat Genet. 47(9):979-86 (2015).
+
+3. Ron LP, Natalie CT, Krystyna AZ, et al. Molecular classification of Crohn's disease and ulcerative colitis patients using transcriptional profiles in peripheral blood mononuclear cells. Michael E Burczynski, J Mol Diagn 8(1):51-61 (2006).
+
+4. Ambroise C, McLachlan GJ. Selection bias in gene extraction on the basis of microarray gene-expression data. Proc Natl Acad Sci USA. 99(10):6562-6 (2002).
+
+5. Dupuy A, Simon RM. Critical review of published microarray studies for cancer outcome and guidelines on statistical analysis and reporting. J Natl Cancer Inst. 99(2):147-57 (2007).
+
+5. Cross-Validated, How to use R prcomp results for prediction? https://stats.stackexchange.com/questions/72839/how-to-use-r-prcomp-results-for-prediction
+
+# Code Appendix
 
 ```{r}
 library(pls)
