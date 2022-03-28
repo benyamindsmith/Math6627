@@ -1,4 +1,3 @@
-## ----echo=FALSE, fig.cap="There is little to no missing data in this dataset", message=FALSE, warning=FALSE----
 library(tidyverse)
 library(stringr)
 library(stringi)
@@ -14,20 +13,9 @@ dt<- readr::read_csv('./ted_main.csv')
 naniar::vis_miss(dt)+
   theme(axis.text.x = element_text(angle = 90))
 
-
-## ----eval=FALSE, tidy=TRUE, tidy.opts=list(width.cutoff=60)------------------------------
-## [{'id': 3, 'name': 'Courageous', 'count': 139}, {'id': 2, 'name': 'Confusing', 'count': 25}, {'id': 1, 'name': 'Beautiful', 'count': 48}, {'id': 9, 'name': 'Ingenious', 'count': 31}, {'id': 21, 'name': 'Unconvincing', 'count': 35}, {'id': 11, 'name': 'Longwinded', 'count': 21}, {'id': 8, 'name': 'Informative', 'count': 218}, {'id': 10, 'name': 'Inspiring', 'count': 113}, {'id': 22, 'name': 'Fascinating', 'count': 44}, {'id': 25, 'name': 'OK', 'count': 51}, {'id': 23, 'name': 'Jaw-dropping', 'count': 35}, {'id': 24, 'name': 'Persuasive', 'count': 112}, {'id': 7, 'name': 'Funny', 'count': 9}, {'id': 26, 'name': 'Obnoxious', 'count': 11}]
-
-
-## ----eval=FALSE, tidy=TRUE, tidy.opts=list(width.cutoff=60)------------------------------
-## [{'id': 127, 'hero': 'https://pe.tedcdn.com/images/ted/5cd871dcf27ba4288021c2bfe6a3f6796dab2538_2880x1620.jpg', 'speaker': 'Ngozi Okonjo-Iweala', 'title': 'Want to help Africa? Do business here', 'duration': 1213, 'slug': 'ngozi_okonjo_iweala_on_doing_business_in_africa', 'viewed_count': 1044183}, {'id': 1929, 'hero': 'https://pe.tedcdn.com/images/ted/82bbf525e7b13a879e6b7299303ec510f7ceb9fb_1600x1200.jpg', 'speaker': 'Michael Metcalfe', 'title': 'We need money for aid. So let’s print it.', 'duration': 864, 'slug': 'michael_metcalfe_we_need_money_for_aid_so_let_s_print_it', 'viewed_count': 756965}, {'id': 584, 'hero': 'https://pe.tedcdn.com/images/ted/98530_800x600.jpg', 'speaker': 'Paul Collier', 'title': 'New rules for rebuilding a broken nation', 'duration': 994, 'slug': 'paul_collier_s_new_rules_for_rebuilding_a_broken_nation', 'viewed_count': 406525}, {'id': 1196, 'hero': 'https://pe.tedcdn.com/images/ted/7bb5389d0360ef7905de6b6a017b7ce836ad673d_800x600.jpg', 'speaker': 'Rory Stewart', 'title': 'Time to end the war in Afghanistan', 'duration': 1202, 'slug': 'rory_stewart_time_to_end_the_war_in_afghanistan', 'viewed_count': 659270}, {'id': 270, 'hero': 'https://pe.tedcdn.com/images/ted/1cffd7f06b5754232bc90a0ca15b1339487d7200_2400x1800.jpg', 'speaker': 'Paul Collier', 'title': 'The \"bottom billion\"', 'duration': 1011, 'slug': 'paul_collier_shares_4_ways_to_help_the_bottom_billion', 'viewed_count': 990214}, {'id': 2806, 'hero': 'https://pe.tedcdn.com/images/ted/f26393b438dfc2ed8c8ae66d0c7291ac08629153_2880x1620.jpg', 'speaker': 'Jim Yong Kim', 'title': \"Doesn't everyone deserve a chance at a good life?\", 'duration': 1332, 'slug': 'jim_yong_kim_doesn_t_everyone_deserve_a_chance_at_a_good_life', 'viewed_count': 1341183}]
-
-
-## ----eval=FALSE, tidy=TRUE, tidy.opts=list(width.cutoff=60)------------------------------
-## ['business', 'corruption', 'culture', 'economics', 'entrepreneur', 'global development', 'global issues', 'investment', 'military', 'policy', 'politics', 'poverty']
-
-
-## ----message=FALSE, warning=FALSE, include=FALSE-----------------------------------------
+######################
+## Data Engineering ##
+######################
 
 ratingsDf<- dt$ratings %>% 
             lapply(function(x) read_yaml(text=x)) %>% 
@@ -119,7 +107,6 @@ for(i in 1:length(tagsDf)){
 tagsDf<- do.call(rbind,tagsDf)
 
 
-## ----message=FALSE, warning=FALSE, include=FALSE-----------------------------------------
 # Need to fix dates
 fullyJoinedDf<- ratingsDf %>%
                 left_join(tagsDf,by= "url") %>% 
@@ -130,8 +117,6 @@ fullyJoinedDf<- ratingsDf %>%
                        published_date=lubridate::as_datetime(published_date))
               
 
-
-## ----message=FALSE, warning=FALSE, include=FALSE-----------------------------------------
 # Working dataframe
 dtt<-fullyJoinedDf %>%
       select(!ratingID) %>% 
@@ -146,12 +131,14 @@ dtt<- dtt %>%
       mutate(across(names(dtt)[grepl("tag_",names(dtt))],~ ifelse(!is.na(.x),1,0)))
 
 
-## ----message=FALSE, warning=FALSE, include=FALSE-----------------------------------------
+############
+# Analysis #
+############
+
 y <- dtt$views
 X <- data.matrix(dtt[,-which(names(dtt) %in% c("views"))])
 
 
-## ----echo=FALSE, message=FALSE, warning=FALSE, fig.cap= "MSE vs $\\lambda_{views}$"------
 #perform k-fold cross-validation to find optimal lambda value
 cv_model_views <- cv.glmnet(X, y, alpha = 1)
 #find optimal lambda value that minimizes test MSE
@@ -161,7 +148,6 @@ best_lambda<- cv_model_views$lambda.min
 plot(cv_model_views, main =expression("MSE vs "*lambda[views]*""))
 
 
-## ----echo=FALSE, message=FALSE, warning=FALSE--------------------------------------------
 best_model_views <- glmnet(X, y, alpha = 1, lambda = best_lambda)
 
 as.matrix(coef(best_model_views),rownames) %>% 
@@ -169,8 +155,6 @@ as.matrix(coef(best_model_views),rownames) %>%
   filter(s0!=0) %>% 
   knitr::kable(caption="Sparse Estimates for Ted Talk Popularity (in terms of Views)")
 
-
-## ----echo=FALSE, message=FALSE, warning=FALSE--------------------------------------------
 tibble(`Rating Tag` = unique(fullyJoinedDf$ratingTag),
        Classification = c("Good","Good","Good",
                           "Good","Bad","Bad",
@@ -180,7 +164,6 @@ tibble(`Rating Tag` = unique(fullyJoinedDf$ratingTag),
   knitr::kable(caption="Unique Rating Tags accross all Ted Talks")
 
 
-## ----echo=FALSE, message=FALSE, warning=FALSE--------------------------------------------
 # Including Good/Bad Ratio
 dtt<-dtt %>% 
   rowwise() %>% 
@@ -197,8 +180,6 @@ dtt<-dtt %>%
                                                            rating_Obnoxious,
                                                            rating_Inspiring))
 
-
-## ----echo=FALSE, message=FALSE, warning=FALSE--------------------------------------------
 dtt %>%
 group_by(`Good/Bad Ratio`) %>% 
 arrange(-desc(`Good/Bad Ratio`),.by_group = T) %>%
@@ -207,7 +188,6 @@ filter(`Good/Bad Ratio` < 0.6083570) %>%
 knitr::kable(caption="Top 10 Worst Ted Talks")
 
 
-## ----echo=FALSE, message=FALSE, warning=FALSE--------------------------------------------
 dtt %>%
 group_by(`Good/Bad Ratio`) %>% 
 arrange(desc(`Good/Bad Ratio`)) %>%
@@ -216,14 +196,11 @@ filter(`Good/Bad Ratio` >= 18.714285) %>%
 knitr::kable(caption="Top 10 Best Ted Talks")  
 
 
-## ----echo=FALSE, message=FALSE, warning=FALSE--------------------------------------------
 # Comments
 
 y <- dtt$comments
 X <- data.matrix(dtt[,-which(names(dtt) %in% c("comments"))])
 
-
-## ----echo=FALSE, message=FALSE, warning=FALSE, fig.cap= "MSE vs $\\lambda_{comments}$"----
 #perform k-fold cross-validation to find optimal lambda value
 cv_model_comments <- cv.glmnet(X, y, alpha = 1)
 #find optimal lambda value that minimizes test MSE
@@ -233,7 +210,6 @@ best_lambda<- cv_model_comments$lambda.min
 plot(cv_model_comments, main =expression("MSE vs "*lambda[comments]*""))
 
 
-## ----echo=FALSE, message=FALSE, warning=FALSE--------------------------------------------
 best_model_comments <- glmnet(X, y, alpha = 1, lambda = best_lambda)
 
 as.matrix(coef(best_model_comments),rownames) %>% 
@@ -242,7 +218,6 @@ as.matrix(coef(best_model_comments),rownames) %>%
   knitr::kable(caption="Sparse Estimates for Ted Talk Popularity (in terms of comments)")
 
 
-## ----echo=FALSE, message=FALSE, warning=FALSE, fig.cap="Characteristics Predicting Popularity over time in terms of views"----
 fullyJoinedDf %>% 
   mutate(published_year = lubridate::year(published_date)) %>% 
   group_by(published_year,tagValue) %>% 
@@ -257,8 +232,6 @@ fullyJoinedDf %>%
         axis.title.y=element_blank(),
         axis.title.x = element_blank())
 
-
-## ----echo=FALSE, message=FALSE, warning=FALSE,fig.cap ="Characteristics Predicting Popularity over time in terms of comments"----
 fullyJoinedDf %>% 
   mutate(published_year = lubridate::year(published_date)) %>% 
   group_by(published_year,tagValue) %>% 
@@ -273,8 +246,6 @@ fullyJoinedDf %>%
         axis.title.y=element_blank(),
         axis.title.x = element_blank())
 
-
-## ----echo=FALSE, message=FALSE, warning=FALSE--------------------------------------------
 set.seed(6627)
 library(nlme)
 fit_views <- lme(views~ duration+ tagValue + languages + comments +duration*tagValue+languages*tagValue+comments*tagValue, 
@@ -290,9 +261,6 @@ fit_views <- lme(views~ duration+ tagValue + languages + comments +duration*tagV
 sum_views<-summary(fit_views)
 
 knitr::kable(sum_views$tTable, caption = "Fixed effects of the views mixed model")
-
-
-## ----echo=FALSE, message=FALSE, warning=FALSE--------------------------------------------
 
 set.seed(6627)
 
