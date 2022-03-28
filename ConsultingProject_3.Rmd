@@ -98,6 +98,7 @@ pca_summary$importance[,1:38]
 A way to view the effectiveness of such a model would be to use 10-fold cross validation and see the mean-square error of prediction produced.  From figures 1 and 2 the MSE produced from PCA regression using 38 components produces a MSE of around 0.43 and the spread between predicted and measured groups is quite large. From this it can be seen that the 38 principal components are useful for explaining the variance in the data, however as a method for classifying individuals it is quite poor.
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE,fig.cap="Mean Square Error of Prediction With PCA Regresion (38 Components)"}
+<<<<<<< HEAD
 library(pls)
 library(caret)
 set.seed(1)
@@ -190,6 +191,8 @@ sparseEstimates %>%
 # Code Appendix
 
 ```{r}
+=======
+>>>>>>> 7e052d17e71b73e7e6975bc7e5a5cb7437654e0b
 library(pls)
 library(caret)
 set.seed(1)
@@ -197,18 +200,27 @@ set.seed(1)
 pcr_model <- pcr(Group~ ., 
                  data = data.matrix(dtt) %>% as.data.frame.matrix(), 
                  scale = TRUE, 
-                 validation = "CV")
+                 validation = "CV",
+                 ncomp=38)
 
-validationplot(pcr_model, val.type="MSEP")
+
+validationplot(pcr_model, val.type=c("MSEP"),main="Mean Square Error of Prediction With PCA Regresion (38 Components)")
 
 ```
 
 
+```{r echo=FALSE, message=FALSE, warning=FALSE,fig.cap="Predicted vs Measured Values using PCA Regression with 38 Components"}
+predplot(pcr_model, main="Predicted vs Measured Values using PCA Regression with\n 38 Components")
+
+```
+
+While this method did prove to be a successful method for clustering data, it does demonstrate (and confirm) that the finding by  Liu, van Sommeren, Huang, et al identifies loci which are susceptible to receiving the diseases in question, but are not useful as predictors in of themselves. 
+
+\newpage
 
 ## What Data Features Can Predict The Disease State From Three Biological Groups
 
-[MULTINOMIAL REGRESSION] 
-
+With a focus on prediction, the use of multinomial regression is employed
 ```{r}
 dtt2 <- data.matrix(dtt)
 y <- dtt2[,1]
@@ -262,5 +274,6 @@ mod <- multinom(Group ~ .,data=dtt)
 
 5. Dupuy A, Simon RM. Critical review of published microarray studies for cancer outcome and guidelines on statistical analysis and reporting. J Natl Cancer Inst. 99(2):147-57 (2007).
 
+5. Cross-Validated, How to use R prcomp results for prediction? https://stats.stackexchange.com/questions/72839/how-to-use-r-prcomp-results-for-prediction
 
 # Code Appendix
